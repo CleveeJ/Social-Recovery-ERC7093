@@ -90,21 +90,7 @@ contract RecoveryModule is EIP712 {
 
     constructor() EIP712(_DOMAIN_NAME, _DOMAIN_VERSION) {}
 
-    // ---------------------------------------------------------------------
-    // EIP-712 domain (EIP-7093 IRecoveryAccount surface)
-    // ---------------------------------------------------------------------
-
-    function DOMAIN_SEPARATOR_NAME() external pure returns (string memory) {
-        return _DOMAIN_NAME;
-    }
-
-    function DOMAIN_SEPARATOR_VERSION() external pure returns (string memory) {
-        return _DOMAIN_VERSION;
-    }
-
-    function domainSeparatorV4() external view returns (bytes32) {
-        return _domainSeparatorV4();
-    }
+    // EIP-712 domain is exposed via the inherited EIP-5267 `eip712Domain()` (OZ EIP712).
 
     // ---------------------------------------------------------------------
     // Configuration (owner-only, per account) — EIP-7093 updateGuardians
@@ -201,19 +187,19 @@ contract RecoveryModule is EIP712 {
         _verifyGuardianSignatures(digest, permissions);
 
         // Policy check: membership + accumulated weight.
-        (bool ok, uint64 weight) =
-            IRecoveryPolicyVerifier(cfg.policyVerifier).verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
+        (bool ok, uint64 weight) = IRecoveryPolicyVerifier(cfg.policyVerifier)
+            .verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
         require(ok, "RecoveryModule: verification failed");
 
         // Pick the time-lock tier (highest threshold <= weight).
         (bool matched, uint48 lockPeriod) = _selectTier(cfg.thresholdConfigs, weight);
         require(matched, "RecoveryModule: verification failed");
 
-        uint48 executeAfter =
-            lockPeriod > 0 ? uint48(block.timestamp) + uint48(lockPeriod) : uint48(block.timestamp);
+        uint48 executeAfter = lockPeriod > 0 ? uint48(block.timestamp) + uint48(lockPeriod) : uint48(block.timestamp);
 
         uint256 usedNonce = ar.recoveryNonce;
-        ar.pending[configIndex] = PendingRecovery({newOwner: newOwner, nonce: usedNonce, executeAfter: executeAfter, active: true});
+        ar.pending[configIndex] =
+            PendingRecovery({newOwner: newOwner, nonce: usedNonce, executeAfter: executeAfter, active: true});
 
         // Advance the recovery nonce so these exact signatures cannot be replayed.
         ar.recoveryNonce += 1;
@@ -232,7 +218,8 @@ contract RecoveryModule is EIP712 {
                 );
             } else {
                 require(
-                    IPermissionVerifier(p.guardian.guardianVerifier).isValidPermission(digest, p.guardian.signer, p.signature),
+                    IPermissionVerifier(p.guardian.guardianVerifier)
+                        .isValidPermission(digest, p.guardian.signer, p.signature),
                     "RecoveryModule: bad guardian signature"
                 );
             }
@@ -304,11 +291,9 @@ contract RecoveryModule is EIP712 {
 
     /// @notice Cancel an active recovery via a guardian quorum (meets the first/minimum threshold).
     /// @dev Signatures are bound to the pending recovery's nonce + account.
-    function cancelRecoveryByGuardians(
-        address account,
-        uint256 configIndex,
-        IERC7093.Permission[] calldata permissions
-    ) external {
+    function cancelRecoveryByGuardians(address account, uint256 configIndex, IERC7093.Permission[] calldata permissions)
+        external
+    {
         require(account != address(0), "RecoveryModule: zero account");
         AccountRecovery storage ar = accounts[account];
         PendingRecovery storage p = ar.pending[configIndex];
@@ -318,8 +303,8 @@ contract RecoveryModule is EIP712 {
         bytes32 digest = _digestFor(account, configIndex, p.newOwner, p.nonce);
         _verifyGuardianSignatures(digest, permissions);
 
-        (bool ok, uint64 weight) =
-            IRecoveryPolicyVerifier(cfg.policyVerifier).verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
+        (bool ok, uint64 weight) = IRecoveryPolicyVerifier(cfg.policyVerifier)
+            .verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
         require(ok, "RecoveryModule: verification failed");
         require(weight >= cfg.thresholdConfigs[0].threshold, "RecoveryModule: quorum not met");
 

@@ -22,7 +22,10 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
         }
     }
 
-    function verifyRecoveryPolicy(IERC7093.Permission[] calldata permissions, uint64[] calldata /*properties*/ )
+    function verifyRecoveryPolicy(
+        IERC7093.Permission[] calldata permissions,
+        uint64[] calldata /*properties*/
+    )
         external
         view
         returns (bool succ, uint64 weight)

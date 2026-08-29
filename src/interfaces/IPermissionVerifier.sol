@@ -17,9 +17,7 @@ interface IPermissionVerifier {
     /// @param hash      The EIP-712 recovery digest that was signed.
     /// @param signer    The guardian's sub-identity (empty for EOA/SCA).
     /// @param signature The guardian's signature/proof over `hash`.
-    function isValidPermission(bytes32 hash, bytes calldata signer, bytes calldata signature)
-        external
-        returns (bool);
+    function isValidPermission(bytes32 hash, bytes calldata signer, bytes calldata signature) external returns (bool);
 
     /// @dev Validate a batch of guardian permissions.
     function isValidPermissions(bytes32 hash, bytes[] calldata signers, bytes[] calldata signatures)

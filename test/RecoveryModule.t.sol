@@ -92,8 +92,11 @@ contract RecoveryModuleTest is Test {
         view
         returns (bytes32)
     {
-        bytes32 DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-        bytes32 domain = keccak256(abi.encode(DOMAIN_TYPEHASH, keccak256("ERC7093Recovery"), keccak256("1"), chainId, address(module)));
+        bytes32 DOMAIN_TYPEHASH =
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        bytes32 domain = keccak256(
+            abi.encode(DOMAIN_TYPEHASH, keccak256("ERC7093Recovery"), keccak256("1"), chainId, address(module))
+        );
         bytes32 TYPEHASH = keccak256("StartRecovery(uint256 configIndex,address account,bytes newOwners,uint256 nonce)");
         bytes32 structHash = keccak256(abi.encode(TYPEHASH, configIndex, acct, keccak256(newOwnerBytes), nonce));
         return keccak256(abi.encodePacked(hex"1901", domain, structHash));
@@ -183,7 +186,9 @@ contract RecoveryModuleTest is Test {
     }
 
     function test_LockPeriodStored() public view {
-        assertEq(module.getThresholdConfigs(address(account), 0)[0].lockPeriod, SafeCast.toInt48(SafeCast.toInt256(LOCK)));
+        assertEq(
+            module.getThresholdConfigs(address(account), 0)[0].lockPeriod, SafeCast.toInt48(SafeCast.toInt256(LOCK))
+        );
     }
 
     function test_PolicyVerifierStored() public view {
@@ -210,17 +215,23 @@ contract RecoveryModuleTest is Test {
         assertEq(cfgs[0].guardianInfos.length, 3);
     }
 
-    function test_DomainSeparators() public view {
-        assertEq(module.DOMAIN_SEPARATOR_NAME(), "ERC7093Recovery");
-        assertEq(module.DOMAIN_SEPARATOR_VERSION(), "1");
-        assertEq(module.domainSeparatorV4(), _domainSeparatorV4());
-    }
-
-    function _domainSeparatorV4() internal view returns (bytes32) {
-        bytes32 DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-        return keccak256(
-            abi.encode(DOMAIN_TYPEHASH, keccak256("ERC7093Recovery"), keccak256("1"), block.chainid, address(module))
-        );
+    function test_EIP5267Domain() public view {
+        (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address vc,
+            bytes32 salt,
+            uint256[] memory ext
+        ) = module.eip712Domain();
+        assertEq(uint8(fields), 0x0f);
+        assertEq(name, "ERC7093Recovery");
+        assertEq(version, "1");
+        assertEq(chainId, block.chainid);
+        assertEq(vc, address(module));
+        assertEq(salt, bytes32(0));
+        assertEq(ext.length, 0);
     }
 
     // ---------------------------------------------------------------------
@@ -557,7 +568,10 @@ contract RecoveryModuleTest is Test {
         _configureMultiTier();
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
-        assertEq(module.getPendingRecovery(address(account), 0).executeAfter, SafeCast.toUint48(block.timestamp) + SafeCast.toUint48(LOCK));
+        assertEq(
+            module.getPendingRecovery(address(account), 0).executeAfter,
+            SafeCast.toUint48(block.timestamp) + SafeCast.toUint48(LOCK)
+        );
     }
 
     function test_MultiTier_ThreeGuardiansInstant() public {
