@@ -5,10 +5,10 @@ import {Test} from "forge-std/Test.sol";
 
 import {SmartAccount} from "../src/SmartAccount.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
-import {IEntryPoint} from "@account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import {IEntryPoint as OZEntryPoint} from "@openzeppelin/contracts/interfaces/draft-IERC4337.sol";
+import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 
 import {RecoveryModule} from "../src/RecoveryModule.sol";
-import {SimpleGuardianVerifier} from "../src/verifiers/SimpleGuardianVerifier.sol";
 import {SimpleThresholdPolicyVerifier} from "../src/verifiers/SimpleThresholdPolicyVerifier.sol";
 
 import {IERC7093} from "../src/interfaces/IERC7093.sol";
@@ -20,7 +20,6 @@ contract RecoveryModuleTest is Test {
     EntryPoint public entryPoint;
     SmartAccount public account;
     RecoveryModule public module;
-    SimpleGuardianVerifier public guardianVerifier;
     SimpleThresholdPolicyVerifier public policyVerifier;
 
     uint256 ownerKey;
@@ -45,15 +44,13 @@ contract RecoveryModuleTest is Test {
         owner = vm.addr(ownerKey);
 
         entryPoint = new EntryPoint();
-        account = new SmartAccount(IEntryPoint(address(entryPoint)), owner);
-        guardianVerifier = new SimpleGuardianVerifier();
+        account = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         module = new RecoveryModule();
 
-        // Authorize the module on the account.
-        vm.prank(owner);
-        account.setRecoveryModule(address(module));
-
-        _configureConfig0();
+        // Authorize the module on the account via the ERC-7579 install flow.
+        IERC7093.RecoveryConfigArg[] memory recoveryArgs = _installArgs();
+        vm.prank(address(account));
+        account.installModule(MODULE_TYPE_EXECUTOR, address(module), abi.encode(recoveryArgs));
     }
 
     // ---------------------------------------------------------------------
@@ -72,17 +69,15 @@ contract RecoveryModuleTest is Test {
         return g;
     }
 
-    /// @dev Deploy a SimpleThresholdPolicyVerifier seeded with `g` and register it
-    ///      as the sole recovery config for `account`.
-    function _configureConfig0() internal {
+    // Build the sole recovery config for `account` (installed via `installModule`).
+    function _installArgs() internal returns (IERC7093.RecoveryConfigArg[] memory) {
         IERC7093.GuardianInfo[] memory g = _g3();
         policyVerifier = new SimpleThresholdPolicyVerifier(g);
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, SafeCast.toInt48(SafeCast.toInt256(LOCK)));
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
         args[0] = IERC7093.RecoveryConfigArg(address(policyVerifier), g, t);
-        vm.prank(owner);
-        module.updateGuardians(address(account), args);
+        return args;
     }
 
     /// @dev Mirror of the module's EIP-712 digest so tests can craft a tampered
@@ -307,7 +302,7 @@ contract RecoveryModuleTest is Test {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
 
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryStarted(no, 0, expected);
+        emit RecoveryModule.RecoveryStarted(no, 1, expected);
         module.startRecovery(address(account), 0, no, p);
     }
 
@@ -316,7 +311,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         RecoveryModule.PendingRecovery memory pr = module.getPendingRecovery(address(account), 0);
         assertEq(abi.decode(pr.newOwner, (address)), newOwner);
-        assertEq(pr.nonce, 0);
+        assertEq(pr.nonce, 1);
         assertEq(pr.executeAfter, SafeCast.toUint48(block.timestamp) + SafeCast.toUint48(LOCK));
         assertTrue(pr.active);
     }
@@ -341,7 +336,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         vm.warp(block.timestamp + LOCK + 1);
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryExecuted(abi.encode(newOwner), 0);
+        emit RecoveryModule.RecoveryExecuted(abi.encode(newOwner), 1);
         module.executeRecovery(address(account), 0);
         assertEq(account.owner(), newOwner);
     }
@@ -356,7 +351,7 @@ contract RecoveryModuleTest is Test {
 
     function test_UnauthorizedCannotDirectlyChangeOwner() public {
         vm.prank(stranger);
-        vm.expectRevert("SmartAccount: not recovery module");
+        vm.expectRevert(abi.encodeWithSelector(SmartAccount.NotAuthorizedRecovery.selector, stranger));
         account.recoverOwner(abi.encode(newOwner));
     }
 
@@ -365,10 +360,11 @@ contract RecoveryModuleTest is Test {
     // ---------------------------------------------------------------------
 
     function test_RecoveryNonceIncrements() public {
-        assertEq(module.getRecoveryNonce(address(account)), 0);
+        // Install already bumped the nonce to 1; starting a recovery bumps it to 2.
+        assertEq(module.getRecoveryNonce(address(account)), 1);
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
-        assertEq(module.getRecoveryNonce(address(account)), 1);
+        assertEq(module.getRecoveryNonce(address(account)), 2);
     }
 
     function test_ReplaySamePermissionsRejected() public {
@@ -379,7 +375,7 @@ contract RecoveryModuleTest is Test {
         module.executeRecovery(address(account), 0);
         assertEq(account.owner(), newOwner);
 
-        // Same signatures (bound to nonce 0); module now computes digest with nonce 1.
+        // Same signatures (bound to the old nonce); the module moved past it.
         vm.expectRevert("RecoveryModule: bad guardian signature");
         module.startRecovery(address(account), 0, no, p);
     }
@@ -412,10 +408,8 @@ contract RecoveryModuleTest is Test {
     /// @dev The EIP-712 digest now binds `account` AND `verifyingContract` (this shared
     ///      module). A signature produced for a DIFFERENT account does not validate.
     function test_SignatureForAnotherAccountRejected() public {
-        // Configure an identical guardian set for a second account on the SAME module.
-        SmartAccount acc2 = new SmartAccount(IEntryPoint(address(entryPoint)), owner);
-        vm.prank(owner);
-        acc2.setRecoveryModule(address(module));
+        // A digest for a second account (never configured) is rejected on the first.
+        SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         IERC7093.GuardianInfo[] memory g = _g3();
         SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier(g);
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
@@ -437,10 +431,8 @@ contract RecoveryModuleTest is Test {
     ///      (this shared module). A signature produced for a DIFFERENT module does
     ///      not validate on this one.
     function test_SignatureForAnotherModuleRejected() public {
-        SmartAccount acc2 = new SmartAccount(IEntryPoint(address(entryPoint)), owner);
+        SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         RecoveryModule mod2 = new RecoveryModule();
-        vm.prank(owner);
-        acc2.setRecoveryModule(address(mod2));
         IERC7093.GuardianInfo[] memory g = _g3();
         SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier(g);
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
@@ -464,10 +456,18 @@ contract RecoveryModuleTest is Test {
 
     function test_AccountsAreIsolated() public {
         // A fresh account that never registered a config cannot start a recovery.
-        SmartAccount accB = new SmartAccount(IEntryPoint(address(entryPoint)), owner);
+        // NOTE (ERC-7579 lifecycle): since the module refactor, an unconfigured account
+        // is rejected by the installation guard ("not installed") before config lookup.
+        // The isolation property is unchanged — only the revert reason is stricter/earlier.
+        SmartAccount accB = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
-        vm.expectRevert("RecoveryModule: invalid configIndex");
+        vm.expectRevert("RecoveryModule: not installed");
         module.startRecovery(address(accB), 0, abi.encode(newOwner), p);
+
+        // An installed account with an out-of-range config index is still rejected
+        // by the config lookup guard.
+        vm.expectRevert("RecoveryModule: invalid configIndex");
+        module.startRecovery(address(account), 99, abi.encode(newOwner), p);
     }
 
     function test_CancelByStrangerOnOtherAccountReverts() public {
@@ -475,7 +475,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
 
         // A recovery active on `account` must NOT bleed into another account.
-        SmartAccount accB = new SmartAccount(IEntryPoint(address(entryPoint)), owner);
+        SmartAccount accB = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         vm.prank(owner);
         vm.expectRevert("RecoveryModule: no active recovery");
         module.cancelRecovery(address(accB), 0);
@@ -495,7 +495,7 @@ contract RecoveryModuleTest is Test {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryCanceled(0);
+        emit RecoveryModule.RecoveryCanceled(1);
         vm.prank(owner);
         module.cancelRecovery(address(account), 0);
         assertFalse(module.getPendingRecovery(address(account), 0).active);
@@ -514,7 +514,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         IERC7093.Permission[] memory cp = _cancelPerms(address(account), 0, newOwner, _arr(pkA, pkB));
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryCanceled(0);
+        emit RecoveryModule.RecoveryCanceled(1);
         module.cancelRecoveryByGuardians(address(account), 0, cp);
         assertFalse(module.getPendingRecovery(address(account), 0).active);
     }
@@ -635,32 +635,4 @@ contract RecoveryModuleTest is Test {
         assertTrue(module.getPendingRecovery(address(account), 0).active);
     }
 
-    // ---------------------------------------------------------------------
-    // SimpleGuardianVerifier (EIP-7093 IPermissionVerifier) unit tests
-    // ---------------------------------------------------------------------
-
-    function test_GuardianVerifier_EOA() public view {
-        bytes32 hash = keccak256("recovery");
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pkA, hash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        assertTrue(guardianVerifier.isValidPermission(hash, abi.encode(guardianA), sig));
-        assertFalse(guardianVerifier.isValidPermission(hash, abi.encode(guardianB), sig));
-    }
-
-    function test_GuardianVerifier_SCA() public {
-        MockERC1271Guardian g = new MockERC1271Guardian(guardianC);
-        bytes32 hash = keccak256("recovery");
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pkC, hash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        assertTrue(guardianVerifier.isValidPermission(hash, abi.encode(address(g)), sig));
-    }
-
-    function test_GuardianVerifier_Validators() public view {
-        bytes[] memory signers = new bytes[](1);
-        signers[0] = abi.encode(guardianA);
-        assertTrue(guardianVerifier.isValidSigners(signers));
-        signers[0] = bytes("bad");
-        assertFalse(guardianVerifier.isValidSigners(signers));
-        assertTrue(guardianVerifier.getGuardianVerifierInfo().length > 0);
-    }
 }

@@ -5,6 +5,8 @@ pragma solidity ^0.8.23;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {IERC7579Execution, IERC7579Module, MODULE_TYPE_EXECUTOR} from
+    "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 
 import {IERC7093} from "./interfaces/IERC7093.sol";
 import {ISmartAccount} from "./interfaces/ISmartAccount.sol";
@@ -13,30 +15,19 @@ import {IPermissionVerifier} from "./interfaces/IPermissionVerifier.sol";
 import {SimpleThresholdPolicyVerifier} from "./verifiers/SimpleThresholdPolicyVerifier.sol";
 
 /// @title RecoveryModule
-/// @notice ERC-7093-aligned social recovery module (multi-tenant): one deployed module
-///         serves many `SmartAccount`s, with all recovery state keyed by `account`.
-/// @dev Responsibilities are limited to RECOVERY: verify guardian sigs, enforce the
-///      threshold/time-lock policy, then call `SmartAccount.recoverOwner()` once matured.
-///      It does NOT participate in normal ERC-4337 authorization. State per account:
-///        - `accounts[account].configs`      → verifier + threshold tiers
-///        - `accounts[account].pending`      → active recovery per config index
-///        - `accounts[account].recoveryNonce` → per-account replay nonce
-///      Guardian sig checking: empty `signer` ⇒ SignatureChecker (EOA/ERC-1271);
-///      non-empty ⇒ the guardian's `IPermissionVerifier`. The EIP-712 digest binds
-///      this module + `account`, preventing cross-account replay. Keep this contract
-///      minimal/immutable (logic delegated to per-config verifiers) as it is a shared SPOF.
-contract RecoveryModule is EIP712 {
+/// @notice ERC-7093 social recovery as an ERC-7579 executor module (type 2 only).
+/// One deployment serves many accounts; all state is keyed by `account`.
+/// Sole privilege on an installed account is ownership rotation via `recoverOwner`.
+contract RecoveryModule is EIP712, IERC7579Module {
     // ---------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------
 
-    /// @dev A recovery config: the policy verifier (holds the guardian set) + threshold tiers.
     struct RecoveryConfig {
         address policyVerifier;
         IERC7093.ThresholdConfig[] thresholdConfigs;
     }
 
-    /// @dev Pending recovery state, per (account, config index).
     struct PendingRecovery {
         bytes newOwner;
         uint256 nonce;
@@ -44,16 +35,12 @@ contract RecoveryModule is EIP712 {
         bool active;
     }
 
-    /// @dev All recovery state for a single account. Keyed by the account address in
-    ///      the top-level `accounts` mapping.
     struct AccountRecovery {
         RecoveryConfig[] configs;
         mapping(uint256 => PendingRecovery) pending;
         uint256 recoveryNonce;
     }
 
-    /// @dev EIP-712 request type. Binds domain + account + configIndex + newOwner + nonce,
-    ///      so a guardian signature can't be replayed on another account/config/owner/nonce.
     struct RecoveryRequest {
         uint256 configIndex;
         address account;
@@ -61,7 +48,6 @@ contract RecoveryModule is EIP712 {
         uint256 nonce;
     }
 
-    /// @dev EIP-7093 `StartRecovery` type hash; includes `account` for a shared module.
     bytes32 private constant RECOVERY_REQUEST_TYPEHASH =
         keccak256("StartRecovery(uint256 configIndex,address account,bytes newOwners,uint256 nonce)");
 
@@ -72,8 +58,10 @@ contract RecoveryModule is EIP712 {
     // Storage
     // ---------------------------------------------------------------------
 
-    /// @notice Per-account recovery state. Keyed by the SmartAccount address.
     mapping(address => AccountRecovery) internal accounts;
+
+    /// @notice Set on install, cleared on uninstall. Start/execute/guardian-cancel require it.
+    mapping(address => bool) public installed;
 
     // ---------------------------------------------------------------------
     // Events
@@ -90,25 +78,47 @@ contract RecoveryModule is EIP712 {
 
     constructor() EIP712(_DOMAIN_NAME, _DOMAIN_VERSION) {}
 
-    // EIP-712 domain is exposed via the inherited EIP-5267 `eip712Domain()` (OZ EIP712).
+    // ---------------------------------------------------------------------
+    // ERC-7579 module interface (executor only)
+    // ---------------------------------------------------------------------
+
+    function isModuleType(uint256 moduleTypeId) external pure returns (bool) {
+        return moduleTypeId == MODULE_TYPE_EXECUTOR;
+    }
+
+    /// @notice `data` is `abi.encode(RecoveryConfigArg[])`. Bumps the recovery nonce,
+    /// invalidating any pre-existing pending recovery or signatures for this account.
+    function onInstall(bytes calldata data) external {
+        require(data.length > 0, "RecoveryModule: empty init");
+        IERC7093.RecoveryConfigArg[] memory args = abi.decode(data, (IERC7093.RecoveryConfigArg[]));
+        _configure(msg.sender, args);
+        installed[msg.sender] = true;
+        accounts[msg.sender].recoveryNonce += 1;
+    }
+
+    function onUninstall(bytes calldata) external {
+        installed[msg.sender] = false;
+    }
 
     // ---------------------------------------------------------------------
     // Configuration (owner-only, per account) — EIP-7093 updateGuardians
     // ---------------------------------------------------------------------
 
-    /// @notice Replace ALL recovery configurations for `account` (owner-only, EIP's onlySelf).
-    /// @dev Each `policyVerifier` must be a deployed IRecoveryPolicyVerifier holding the guardian set.
+    /// @notice Replace ALL recovery configurations for `account` (owner only).
     function updateGuardians(address account, IERC7093.RecoveryConfigArg[] calldata args) external {
         require(account != address(0), "RecoveryModule: zero account");
         require(ISmartAccount(account).owner() == msg.sender, "RecoveryModule: not owner");
-        require(args.length > 0, "RecoveryModule: empty configs");
+        _configure(account, args);
+        installed[account] = true;
+    }
 
-        // Clear previous config (recursively frees nested).
+    function _configure(address account, IERC7093.RecoveryConfigArg[] memory args) internal {
+        require(args.length > 0, "RecoveryModule: empty configs");
         delete accounts[account];
 
         AccountRecovery storage ar = accounts[account];
         for (uint256 i = 0; i < args.length; i++) {
-            IERC7093.RecoveryConfigArg calldata arg = args[i];
+            IERC7093.RecoveryConfigArg memory arg = args[i];
             require(arg.guardianInfos.length > 0, "RecoveryModule: empty guardians");
             require(arg.thresholdConfigs.length > 0, "RecoveryModule: empty threshold");
             require(arg.policyVerifier != address(0), "RecoveryModule: zero policyVerifier");
@@ -127,7 +137,7 @@ contract RecoveryModule is EIP712 {
     // EIP-712 recovery digest
     // ---------------------------------------------------------------------
 
-    /// @notice EIP-712 digest a guardian signs to authorize a recovery for `account`.
+    /// @notice EIP-712 digest guardians sign to authorize a recovery for `account`.
     function getRecoveryDigest(address account, uint256 configIndex, bytes calldata newOwner)
         public
         view
@@ -136,7 +146,6 @@ contract RecoveryModule is EIP712 {
         return _digestFor(account, configIndex, newOwner, accounts[account].recoveryNonce);
     }
 
-    /// @dev Digest for a specific nonce: startRecovery uses the current nonce; cancelRecoveryByGuardians the pending one.
     function _digestFor(address account, uint256 configIndex, bytes memory newOwner, uint256 nonce)
         internal
         view
@@ -155,7 +164,6 @@ contract RecoveryModule is EIP712 {
         return accounts[account].recoveryNonce;
     }
 
-    /// @notice Active/most-recent pending recovery for an account + config index.
     function getPendingRecovery(address account, uint256 configIndex) external view returns (PendingRecovery memory) {
         return accounts[account].pending[configIndex];
     }
@@ -164,9 +172,7 @@ contract RecoveryModule is EIP712 {
     // Lifecycle: startRecovery
     // ---------------------------------------------------------------------
 
-    /// @notice Start a social recovery for `account` (anyone may call; authorized by guardian sigs).
-    /// @dev Flow: compute digest → verify guardian sigs → policy verifier returns weight →
-    ///      pick time-lock tier → store pending recovery → increment recoveryNonce → emit.
+    /// @notice Start a recovery for `account` (anyone may call; authorized by guardian sigs).
     function startRecovery(
         address account,
         uint256 configIndex,
@@ -174,6 +180,7 @@ contract RecoveryModule is EIP712 {
         IERC7093.Permission[] calldata permissions
     ) external {
         require(account != address(0), "RecoveryModule: zero account");
+        require(installed[account], "RecoveryModule: not installed");
         AccountRecovery storage ar = accounts[account];
         require(configIndex < ar.configs.length, "RecoveryModule: invalid configIndex");
         RecoveryConfig storage cfg = ar.configs[configIndex];
@@ -183,15 +190,12 @@ contract RecoveryModule is EIP712 {
 
         bytes32 digest = getRecoveryDigest(account, configIndex, newOwner);
 
-        // Verify each guardian signature (before the policy check).
         _verifyGuardianSignatures(digest, permissions);
 
-        // Policy check: membership + accumulated weight.
         (bool ok, uint64 weight) = IRecoveryPolicyVerifier(cfg.policyVerifier)
             .verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
         require(ok, "RecoveryModule: verification failed");
 
-        // Pick the time-lock tier (highest threshold <= weight).
         (bool matched, uint48 lockPeriod) = _selectTier(cfg.thresholdConfigs, weight);
         require(matched, "RecoveryModule: verification failed");
 
@@ -200,14 +204,12 @@ contract RecoveryModule is EIP712 {
         uint256 usedNonce = ar.recoveryNonce;
         ar.pending[configIndex] =
             PendingRecovery({newOwner: newOwner, nonce: usedNonce, executeAfter: executeAfter, active: true});
-
-        // Advance the recovery nonce so these exact signatures cannot be replayed.
         ar.recoveryNonce += 1;
 
         emit RecoveryStarted(newOwner, usedNonce, executeAfter);
     }
 
-    /// @dev Empty `signer` ⇒ SignatureChecker (EOA/ERC-1271); non-empty ⇒ guardian's IPermissionVerifier.
+    /// @dev Empty `signer` ⇒ SignatureChecker (EOA/ERC-1271); else the guardian's IPermissionVerifier.
     function _verifyGuardianSignatures(bytes32 digest, IERC7093.Permission[] calldata permissions) internal {
         for (uint256 i = 0; i < permissions.length; i++) {
             IERC7093.Permission calldata p = permissions[i];
@@ -226,7 +228,7 @@ contract RecoveryModule is EIP712 {
         }
     }
 
-    /// @dev Highest threshold `<= weight` wins (returns false,0 if none). Negative lockPeriod treated as 0.
+    /// @dev Highest threshold `<= weight` wins. Negative lockPeriod counts as 0.
     function _selectTier(IERC7093.ThresholdConfig[] storage tiers, uint64 weight)
         internal
         view
@@ -254,26 +256,29 @@ contract RecoveryModule is EIP712 {
     // Lifecycle: executeRecovery
     // ---------------------------------------------------------------------
 
-    /// @notice Execute a started recovery after its time-lock elapses (anyone may finalize).
-    /// @dev Requires an active recovery and block.timestamp >= executeAfter; then rotates the owner.
+    /// @notice Execute a matured recovery (anyone may finalize). Rotates the owner via
+    /// the account's `executeFromExecutor` (mode 0 = single, revert-on-failure).
     function executeRecovery(address account, uint256 configIndex) external {
         require(account != address(0), "RecoveryModule: zero account");
+        require(installed[account], "RecoveryModule: not installed");
         AccountRecovery storage ar = accounts[account];
         PendingRecovery storage p = ar.pending[configIndex];
         require(p.active, "RecoveryModule: no active recovery");
         require(block.timestamp >= p.executeAfter, "RecoveryModule: time lock active");
 
-        // Invalidate before the external call (checks-effects-interactions).
         p.active = false;
         emit RecoveryExecuted(p.newOwner, p.nonce);
-        ISmartAccount(account).recoverOwner(p.newOwner);
+
+        bytes memory execution =
+            abi.encodePacked(account, uint256(0), abi.encodeCall(ISmartAccount.recoverOwner, (p.newOwner)));
+        IERC7579Execution(account).executeFromExecutor(bytes32(0), execution);
     }
 
     // ---------------------------------------------------------------------
     // Lifecycle: cancelRecovery (owner-only, per account)
     // ---------------------------------------------------------------------
 
-    /// @notice Cancel an active recovery (only the account owner may call).
+    /// @notice Cancel an active recovery (account owner only).
     function cancelRecovery(address account, uint256 configIndex) external {
         require(account != address(0), "RecoveryModule: zero account");
         require(ISmartAccount(account).owner() == msg.sender, "RecoveryModule: not owner");
@@ -289,12 +294,12 @@ contract RecoveryModule is EIP712 {
     // Lifecycle: cancelRecoveryByGuardians (guardian-quorum cancellation)
     // ---------------------------------------------------------------------
 
-    /// @notice Cancel an active recovery via a guardian quorum (meets the first/minimum threshold).
-    /// @dev Signatures are bound to the pending recovery's nonce + account.
+    /// @notice Cancel an active recovery via guardian quorum (first/minimum threshold).
     function cancelRecoveryByGuardians(address account, uint256 configIndex, IERC7093.Permission[] calldata permissions)
         external
     {
         require(account != address(0), "RecoveryModule: zero account");
+        require(installed[account], "RecoveryModule: not installed");
         AccountRecovery storage ar = accounts[account];
         PendingRecovery storage p = ar.pending[configIndex];
         require(p.active, "RecoveryModule: no active recovery");
@@ -359,7 +364,6 @@ contract RecoveryModule is EIP712 {
         return accounts[account].configs[configIndex].policyVerifier;
     }
 
-    /// @notice Reconstruct the full recovery configuration(s) for an account.
     function getRecoveryConfigs(address account) external view returns (IERC7093.RecoveryConfigArg[] memory) {
         uint256 n = accounts[account].configs.length;
         IERC7093.RecoveryConfigArg[] memory out = new IERC7093.RecoveryConfigArg[](n);
@@ -373,7 +377,6 @@ contract RecoveryModule is EIP712 {
         return out;
     }
 
-    /// @dev Read the authoritative guardian set from the config's policy verifier.
     function _guardiansOf(address account, uint256 configIndex) internal view returns (IERC7093.GuardianInfo[] memory) {
         require(configIndex < accounts[account].configs.length, "RecoveryModule: invalid configIndex");
         return SimpleThresholdPolicyVerifier(accounts[account].configs[configIndex].policyVerifier).getGuardians();
