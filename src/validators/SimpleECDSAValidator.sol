@@ -34,11 +34,7 @@ contract SimpleECDSAValidator is IERC7579Validator {
     // ---------------------------------------------------------------------
 
     /// @notice Returns 0 if `userOp.signature` is the owner's eth-signed `userOpHash`, else 1.
-    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
-        external
-        view
-        returns (uint256)
-    {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external view returns (uint256) {
         address owner = IOwnerReader(msg.sender).owner();
         (address recovered, ECDSA.RecoverError err,) =
             ECDSA.tryRecover(MessageHashUtils.toEthSignedMessageHash(userOpHash), userOp.signature);

@@ -4,7 +4,9 @@ pragma solidity ^0.8.26;
 import {Test} from "forge-std/Test.sol";
 
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
-import {PackedUserOperation as AAPackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {
+    PackedUserOperation as AAPackedUserOperation
+} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {UserOperationLib} from "@account-abstraction/contracts/core/UserOperationLib.sol";
 
 import {IEntryPoint as OZEntryPoint} from "@openzeppelin/contracts/interfaces/draft-IERC4337.sol";
@@ -426,7 +428,9 @@ contract SmartAccountTest is Test {
 
         vm.warp(block.timestamp + LOCK + 1);
         vm.expectRevert(
-            abi.encodeWithSelector(ERC7579Utils.ERC7579UninstalledModule.selector, MODULE_TYPE_EXECUTOR, address(module))
+            abi.encodeWithSelector(
+                ERC7579Utils.ERC7579UninstalledModule.selector, MODULE_TYPE_EXECUTOR, address(module)
+            )
         );
         module.executeRecovery(address(acc2), 0);
         assertEq(acc2.owner(), owner);

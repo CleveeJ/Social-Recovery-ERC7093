@@ -634,5 +634,4 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, no, p);
         assertTrue(module.getPendingRecovery(address(account), 0).active);
     }
-
 }

@@ -5,8 +5,11 @@ pragma solidity ^0.8.23;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import {IERC7579Execution, IERC7579Module, MODULE_TYPE_EXECUTOR} from
-    "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
+import {
+    IERC7579Execution,
+    IERC7579Module,
+    MODULE_TYPE_EXECUTOR
+} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 
 import {IERC7093} from "./interfaces/IERC7093.sol";
 import {ISmartAccount} from "./interfaces/ISmartAccount.sol";
