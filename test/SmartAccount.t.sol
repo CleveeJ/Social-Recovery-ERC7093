@@ -101,7 +101,7 @@ contract SmartAccountTest is Test {
         g[0] = _guardianInfo(guardianA, 1);
         g[1] = _guardianInfo(guardianB, 1);
         g[2] = _guardianInfo(guardianC, 1);
-        policyVerifier = new SimpleThresholdPolicyVerifier(g);
+        policyVerifier = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, SafeCast.toInt48(SafeCast.toInt256(LOCK)));
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);

@@ -15,13 +15,13 @@ import {IERC7093} from "./interfaces/IERC7093.sol";
 import {ISmartAccount} from "./interfaces/ISmartAccount.sol";
 import {IRecoveryPolicyVerifier} from "./interfaces/IRecoveryPolicyVerifier.sol";
 import {IPermissionVerifier} from "./interfaces/IPermissionVerifier.sol";
-import {SimpleThresholdPolicyVerifier} from "./verifiers/SimpleThresholdPolicyVerifier.sol";
 
 /// @title RecoveryModule
 /// @notice ERC-7093 social recovery as an ERC-7579 executor module, keyed by account.
 contract RecoveryModule is EIP712, IERC7579Module {
     struct RecoveryConfig {
         address policyVerifier;
+        IERC7093.GuardianInfo[] guardianInfos;
         IERC7093.ThresholdConfig[] thresholdConfigs;
     }
 
@@ -101,6 +101,9 @@ contract RecoveryModule is EIP712, IERC7579Module {
 
             RecoveryConfig storage cfg = ar.configs.push();
             cfg.policyVerifier = arg.policyVerifier;
+            for (uint256 j = 0; j < arg.guardianInfos.length; j++) {
+                cfg.guardianInfos.push(arg.guardianInfos[j]);
+            }
             for (uint256 j = 0; j < arg.thresholdConfigs.length; j++) {
                 cfg.thresholdConfigs.push(arg.thresholdConfigs[j]);
             }
@@ -156,14 +159,13 @@ contract RecoveryModule is EIP712, IERC7579Module {
 
         _verifyGuardianSignatures(digest, permissions);
 
-        (bool ok, uint64 weight) = IRecoveryPolicyVerifier(cfg.policyVerifier)
-            .verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
+        (bool ok, uint48 lockPeriod) = IRecoveryPolicyVerifier(cfg.policyVerifier)
+            .verifyRecoveryPolicy(
+                permissions, IERC7093.PolicyConfig({guardians: cfg.guardianInfos, thresholds: cfg.thresholdConfigs})
+            );
         require(ok, "RecoveryModule: verification failed");
 
-        (bool matched, uint48 lockPeriod) = _selectTier(cfg.thresholdConfigs, weight);
-        require(matched, "RecoveryModule: verification failed");
-
-        uint48 executeAfter = lockPeriod > 0 ? uint48(block.timestamp) + uint48(lockPeriod) : uint48(block.timestamp);
+        uint48 executeAfter = lockPeriod > 0 ? uint48(block.timestamp) + lockPeriod : uint48(block.timestamp);
 
         uint256 usedNonce = ar.recoveryNonce;
         ar.pending[configIndex] =
@@ -190,29 +192,6 @@ contract RecoveryModule is EIP712, IERC7579Module {
                 );
             }
         }
-    }
-
-    function _selectTier(IERC7093.ThresholdConfig[] storage tiers, uint64 weight)
-        internal
-        view
-        returns (bool matched, uint48 lockPeriod)
-    {
-        uint64 bestThreshold = 0;
-        bool found = false;
-        for (uint256 i = 0; i < tiers.length; i++) {
-            if (weight >= tiers[i].threshold) {
-                if (!found || tiers[i].threshold > bestThreshold) {
-                    bestThreshold = tiers[i].threshold;
-                    lockPeriod = tiers[i].lockPeriod >= 0 ? uint48(uint48(tiers[i].lockPeriod)) : 0;
-                    found = true;
-                }
-            }
-        }
-        matched = found;
-    }
-
-    function _zeroProps(uint256 len) internal pure returns (uint64[] memory) {
-        return new uint64[](len);
     }
 
     /// @notice Execute a matured recovery. Anyone may finalize after the timelock.
@@ -258,10 +237,11 @@ contract RecoveryModule is EIP712, IERC7579Module {
         bytes32 digest = _digestFor(account, configIndex, p.newOwner, p.nonce);
         _verifyGuardianSignatures(digest, permissions);
 
-        (bool ok, uint64 weight) = IRecoveryPolicyVerifier(cfg.policyVerifier)
-            .verifyRecoveryPolicy(permissions, _zeroProps(permissions.length));
+        (bool ok,) = IRecoveryPolicyVerifier(cfg.policyVerifier)
+            .verifyRecoveryPolicy(
+                permissions, IERC7093.PolicyConfig({guardians: cfg.guardianInfos, thresholds: cfg.thresholdConfigs})
+            );
         require(ok, "RecoveryModule: verification failed");
-        require(weight >= cfg.thresholdConfigs[0].threshold, "RecoveryModule: quorum not met");
 
         uint256 nonce = p.nonce;
         p.active = false;
@@ -282,7 +262,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         view
         returns (bool)
     {
-        IERC7093.GuardianInfo[] memory gs = _guardiansOf(account, configIndex);
+        IERC7093.GuardianInfo[] storage gs = accounts[account].configs[configIndex].guardianInfos;
         for (uint256 i = 0; i < gs.length; i++) {
             if (
                 gs[i].guardian.guardianVerifier == guardian.guardianVerifier
@@ -295,7 +275,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
     }
 
     function getGuardians(address account, uint256 configIndex) external view returns (IERC7093.GuardianInfo[] memory) {
-        return _guardiansOf(account, configIndex);
+        return accounts[account].configs[configIndex].guardianInfos;
     }
 
     function getThresholdConfigs(address account, uint256 configIndex)
@@ -314,17 +294,9 @@ contract RecoveryModule is EIP712, IERC7579Module {
         uint256 n = accounts[account].configs.length;
         IERC7093.RecoveryConfigArg[] memory out = new IERC7093.RecoveryConfigArg[](n);
         for (uint256 i = 0; i < n; i++) {
-            out[i] = IERC7093.RecoveryConfigArg(
-                accounts[account].configs[i].policyVerifier,
-                _guardiansOf(account, i),
-                accounts[account].configs[i].thresholdConfigs
-            );
+            RecoveryConfig storage cfg = accounts[account].configs[i];
+            out[i] = IERC7093.RecoveryConfigArg(cfg.policyVerifier, cfg.guardianInfos, cfg.thresholdConfigs);
         }
         return out;
-    }
-
-    function _guardiansOf(address account, uint256 configIndex) internal view returns (IERC7093.GuardianInfo[] memory) {
-        require(configIndex < accounts[account].configs.length, "RecoveryModule: invalid configIndex");
-        return SimpleThresholdPolicyVerifier(accounts[account].configs[configIndex].policyVerifier).getGuardians();
     }
 }

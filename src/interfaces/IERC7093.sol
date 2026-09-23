@@ -31,4 +31,10 @@ interface IERC7093 {
         Identity guardian;
         bytes signature;
     }
+
+    /// @notice Policy inputs forwarded from the recovery module to the verifier.
+    struct PolicyConfig {
+        GuardianInfo[] guardians;
+        ThresholdConfig[] thresholds;
+    }
 }

@@ -5,27 +5,18 @@ import {IERC7093} from "../interfaces/IERC7093.sol";
 import {IRecoveryPolicyVerifier} from "../interfaces/IRecoveryPolicyVerifier.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-/// @notice Weighted-threshold recovery policy over a fixed guardian set.
+/// @notice Stateless weighted-threshold policy: highest satisfied threshold wins.
 contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
-    IERC7093.GuardianInfo[] private _guardians;
-
-    constructor(IERC7093.GuardianInfo[] memory guardians) {
-        require(guardians.length > 0, "SimpleThresholdPolicyVerifier: empty guardians");
-        for (uint256 i = 0; i < guardians.length; i++) {
-            _guardians.push(guardians[i]);
-        }
-    }
-
-    /// @notice Returns success and accumulated weight from stored configuration.
-    function verifyRecoveryPolicy(
-        IERC7093.Permission[] calldata permissions,
-        uint64[] calldata /*properties*/
-    )
+    /// @notice Returns success and the applicable lock period for the supplied config.
+    function verifyRecoveryPolicy(IERC7093.Permission[] calldata permissions, IERC7093.PolicyConfig calldata config)
         external
-        view
-        returns (bool succ, uint64 weight)
+        pure
+        returns (bool ok, uint48 lockPeriod)
     {
-        uint256 n = _guardians.length;
+        uint256 n = config.guardians.length;
+        if (n == 0 || config.thresholds.length == 0) {
+            return (false, 0);
+        }
         if (permissions.length == 0 || permissions.length > n) {
             return (false, 0);
         }
@@ -39,8 +30,8 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
             int256 matched = -1;
             for (uint256 j = 0; j < n; j++) {
                 if (
-                    !used[j] && _guardians[j].guardian.guardianVerifier == p.guardian.guardianVerifier
-                        && keccak256(_guardians[j].guardian.signer) == keccak256(p.guardian.signer)
+                    !used[j] && config.guardians[j].guardian.guardianVerifier == p.guardian.guardianVerifier
+                        && keccak256(config.guardians[j].guardian.signer) == keccak256(p.guardian.signer)
                 ) {
                     matched = SafeCast.toInt256(j);
                     used[j] = true;
@@ -51,17 +42,28 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
                 return (false, 0);
             }
 
-            totalWeight += _guardians[SafeCast.toUint256(matched)].property;
+            totalWeight += config.guardians[SafeCast.toUint256(matched)].property;
         }
 
-        return (true, totalWeight);
+        uint64 bestThreshold = 0;
+        bool found = false;
+        for (uint256 i = 0; i < config.thresholds.length; i++) {
+            if (totalWeight >= config.thresholds[i].threshold) {
+                if (!found || config.thresholds[i].threshold > bestThreshold) {
+                    bestThreshold = config.thresholds[i].threshold;
+                    lockPeriod =
+                        config.thresholds[i].lockPeriod >= 0 ? uint48(uint48(config.thresholds[i].lockPeriod)) : 0;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            return (false, 0);
+        }
+        return (true, lockPeriod);
     }
 
     function getPolicyVerifierInfo() external pure returns (bytes memory) {
         return "SimpleThresholdPolicyVerifier:weighted-threshold";
-    }
-
-    function getGuardians() external view returns (IERC7093.GuardianInfo[] memory) {
-        return _guardians;
     }
 }

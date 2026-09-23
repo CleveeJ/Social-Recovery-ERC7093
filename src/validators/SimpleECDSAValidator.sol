@@ -6,10 +6,7 @@ import {PackedUserOperation} from "@openzeppelin/contracts/interfaces/draft-IERC
 import {ERC4337Utils} from "@openzeppelin/contracts/account/utils/draft-ERC4337Utils.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-
-interface IOwnerReader {
-    function owner() external view returns (address);
-}
+import {ISmartAccount} from "../interfaces/ISmartAccount.sol";
 
 /// @title SimpleECDSAValidator
 /// @notice Stateless ERC-7579 validator reading the live `owner` from the calling account.
@@ -26,7 +23,7 @@ contract SimpleECDSAValidator is IERC7579Validator {
 
     /// @notice Returns 0 if `userOp.signature` is the owner's eth-signed `userOpHash`, else 1.
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external view returns (uint256) {
-        address owner = IOwnerReader(msg.sender).owner();
+        address owner = ISmartAccount(msg.sender).owner();
         (address recovered, ECDSA.RecoverError err,) =
             ECDSA.tryRecover(MessageHashUtils.toEthSignedMessageHash(userOpHash), userOp.signature);
         if (err == ECDSA.RecoverError.NoError && recovered == owner) {
@@ -41,7 +38,7 @@ contract SimpleECDSAValidator is IERC7579Validator {
         view
         returns (bytes4)
     {
-        address owner = IOwnerReader(msg.sender).owner();
+        address owner = ISmartAccount(msg.sender).owner();
         (address recovered, ECDSA.RecoverError err,) =
             ECDSA.tryRecover(MessageHashUtils.toEthSignedMessageHash(hash), signature);
         if (err == ECDSA.RecoverError.NoError && recovered == owner) {

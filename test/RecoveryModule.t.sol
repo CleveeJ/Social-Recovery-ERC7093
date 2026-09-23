@@ -72,7 +72,7 @@ contract RecoveryModuleTest is Test {
     // Build the sole recovery config for `account` (installed via `installModule`).
     function _installArgs() internal returns (IERC7093.RecoveryConfigArg[] memory) {
         IERC7093.GuardianInfo[] memory g = _g3();
-        policyVerifier = new SimpleThresholdPolicyVerifier(g);
+        policyVerifier = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, SafeCast.toInt48(SafeCast.toInt256(LOCK)));
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
@@ -411,7 +411,7 @@ contract RecoveryModuleTest is Test {
         // A digest for a second account (never configured) is rejected on the first.
         SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         IERC7093.GuardianInfo[] memory g = _g3();
-        SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier(g);
+        SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, 0);
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
@@ -434,7 +434,7 @@ contract RecoveryModuleTest is Test {
         SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         RecoveryModule mod2 = new RecoveryModule();
         IERC7093.GuardianInfo[] memory g = _g3();
-        SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier(g);
+        SimpleThresholdPolicyVerifier v2 = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, 0);
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
@@ -524,7 +524,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         // Only guardian A cancels (weight 1 < threshold 2).
         IERC7093.Permission[] memory cp = _cancelPerms(address(account), 0, newOwner, _arr(pkA));
-        vm.expectRevert("RecoveryModule: quorum not met");
+        vm.expectRevert("RecoveryModule: verification failed");
         module.cancelRecoveryByGuardians(address(account), 0, cp);
         assertTrue(module.getPendingRecovery(address(account), 0).active);
     }
@@ -554,7 +554,7 @@ contract RecoveryModuleTest is Test {
 
     function _configureMultiTier() internal {
         IERC7093.GuardianInfo[] memory g = _g3();
-        SimpleThresholdPolicyVerifier v = new SimpleThresholdPolicyVerifier(g);
+        SimpleThresholdPolicyVerifier v = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](2);
         t[0] = IERC7093.ThresholdConfig(2, SafeCast.toInt48(SafeCast.toInt256(LOCK))); // 2-of-3 → 1h lock
         t[1] = IERC7093.ThresholdConfig(3, 0); // 3-of-3 → instant
@@ -616,7 +616,7 @@ contract RecoveryModuleTest is Test {
         gi[0] = _guardianInfo(guardianA, 1);
         gi[1] = _guardianInfo(guardianB, 1);
         gi[2] = _guardianInfo(address(g), 1);
-        SimpleThresholdPolicyVerifier v = new SimpleThresholdPolicyVerifier(gi);
+        SimpleThresholdPolicyVerifier v = new SimpleThresholdPolicyVerifier();
         IERC7093.ThresholdConfig[] memory t = new IERC7093.ThresholdConfig[](1);
         t[0] = IERC7093.ThresholdConfig(THRESHOLD, 0); // no lock, simpler
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
