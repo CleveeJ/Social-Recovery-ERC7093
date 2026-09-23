@@ -529,6 +529,50 @@ contract RecoveryModuleTest is Test {
         assertTrue(module.getPendingRecovery(address(account), 0).active);
     }
 
+    function _configureTwoConfigs() internal {
+        IERC7093.GuardianInfo[] memory g = _g3();
+        IERC7093.ThresholdConfig[] memory t0 = new IERC7093.ThresholdConfig[](1);
+        t0[0] = IERC7093.ThresholdConfig(THRESHOLD, SafeCast.toInt48(SafeCast.toInt256(LOCK)));
+        IERC7093.ThresholdConfig[] memory t1 = new IERC7093.ThresholdConfig[](1);
+        t1[0] = IERC7093.ThresholdConfig(1, 0);
+        IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](2);
+        args[0] = IERC7093.RecoveryConfigArg(address(policyVerifier), g, t0);
+        args[1] = IERC7093.RecoveryConfigArg(address(policyVerifier), g, t1);
+        vm.prank(owner);
+        module.updateGuardians(address(account), args);
+    }
+
+    function test_SecondConfigRejectedWhileFirstActive() public {
+        _configureTwoConfigs();
+        IERC7093.Permission[] memory p0 = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        module.startRecovery(address(account), 0, abi.encode(newOwner), p0);
+        IERC7093.Permission[] memory p1 = _permsValid(address(account), 1, newOwner, _arr(pkA));
+        vm.expectRevert("RecoveryModule: recovery already active");
+        module.startRecovery(address(account), 1, abi.encode(newOwner), p1);
+        assertTrue(module.getPendingRecovery(address(account), 0).active);
+        assertFalse(module.getPendingRecovery(address(account), 1).active);
+    }
+
+    function test_RestartSameConfigWhileActiveRejected() public {
+        IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        module.startRecovery(address(account), 0, abi.encode(newOwner), p);
+        IERC7093.Permission[] memory p2 = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        vm.expectRevert("RecoveryModule: recovery already active");
+        module.startRecovery(address(account), 0, abi.encode(newOwner), p2);
+    }
+
+    function test_StartAfterExecuteAllowed() public {
+        _configureTwoConfigs();
+        IERC7093.Permission[] memory p0 = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        module.startRecovery(address(account), 0, abi.encode(newOwner), p0);
+        vm.warp(block.timestamp + LOCK + 1);
+        module.executeRecovery(address(account), 0);
+        address other = address(0xBEEF);
+        IERC7093.Permission[] memory p1 = _permsValid(address(account), 1, other, _arr(pkA));
+        module.startRecovery(address(account), 1, abi.encode(other), p1);
+        assertTrue(module.getPendingRecovery(address(account), 1).active);
+    }
+
     function test_RecoveryCannotExecuteTwice() public {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);

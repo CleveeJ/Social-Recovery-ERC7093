@@ -140,6 +140,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
     }
 
     /// @notice Start a recovery for `account`. Anyone may call; guardian signatures authorize.
+    /// Only one active recovery per account across all configs.
     function startRecovery(
         address account,
         uint256 configIndex,
@@ -164,6 +165,10 @@ contract RecoveryModule is EIP712, IERC7579Module {
                 permissions, IERC7093.PolicyConfig({guardians: cfg.guardianInfos, thresholds: cfg.thresholdConfigs})
             );
         require(ok, "RecoveryModule: verification failed");
+
+        for (uint256 i = 0; i < ar.configs.length; i++) {
+            require(!ar.pending[i].active, "RecoveryModule: recovery already active");
+        }
 
         uint48 executeAfter = lockPeriod > 0 ? uint48(block.timestamp) + lockPeriod : uint48(block.timestamp);
 
