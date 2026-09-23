@@ -12,14 +12,9 @@ interface IOwnerReader {
 }
 
 /// @title SimpleECDSAValidator
-/// @notice Stateless ERC-7579 validator. Reads the owner from the calling account,
-/// so recovery re-keys normal authorization with no extra step.
+/// @notice Stateless ERC-7579 validator reading the live `owner` from the calling account.
 contract SimpleECDSAValidator is IERC7579Validator {
     bytes4 internal constant _ERC1271_MAGIC = 0x1626ba7e;
-
-    // ---------------------------------------------------------------------
-    // IERC7579Module
-    // ---------------------------------------------------------------------
 
     function onInstall(bytes calldata) external {}
 
@@ -28,10 +23,6 @@ contract SimpleECDSAValidator is IERC7579Validator {
     function isModuleType(uint256 moduleTypeId) external pure returns (bool) {
         return moduleTypeId == MODULE_TYPE_VALIDATOR;
     }
-
-    // ---------------------------------------------------------------------
-    // IERC7579Validator
-    // ---------------------------------------------------------------------
 
     /// @notice Returns 0 if `userOp.signature` is the owner's eth-signed `userOpHash`, else 1.
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external view returns (uint256) {

@@ -5,13 +5,7 @@ import {IERC7093} from "../interfaces/IERC7093.sol";
 import {IRecoveryPolicyVerifier} from "../interfaces/IRecoveryPolicyVerifier.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-/// @notice Concrete ERC-7093 RecoveryPolicyVerifier: weighted threshold over a guardian set.
-/// @dev Flow: RecoveryModule verifies sigs first → this checks each guardian is a unique
-///      configured member → sums `GuardianInfo.property` → returns (succ, totalWeight).
-///      The guardian set lives in this contract instance (one deployed per recovery config,
-///      seeded by the owner and registered via `updateGuardians`); the module keeps the
-///      threshold tiers. Security: weight comes from OWNER-CONFIGURED `guardian.property`,
-///      NEVER caller-supplied `properties` (else a quorum could inflate weight to shorten the lock).
+/// @notice Weighted-threshold recovery policy over a fixed guardian set.
 contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
     IERC7093.GuardianInfo[] private _guardians;
 
@@ -22,6 +16,7 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
         }
     }
 
+    /// @notice Returns success and accumulated weight from stored configuration.
     function verifyRecoveryPolicy(
         IERC7093.Permission[] calldata permissions,
         uint64[] calldata /*properties*/
@@ -41,7 +36,6 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
         for (uint256 i = 0; i < permissions.length; i++) {
             IERC7093.Permission calldata p = permissions[i];
 
-            // Find the guardian in the configured set; reject if missing or already used.
             int256 matched = -1;
             for (uint256 j = 0; j < n; j++) {
                 if (
@@ -54,7 +48,7 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
                 }
             }
             if (matched < 0) {
-                return (false, 0); // not a configured guardian, or duplicate
+                return (false, 0);
             }
 
             totalWeight += _guardians[SafeCast.toUint256(matched)].property;
@@ -67,7 +61,6 @@ contract SimpleThresholdPolicyVerifier is IRecoveryPolicyVerifier {
         return "SimpleThresholdPolicyVerifier:weighted-threshold";
     }
 
-    /// @dev Returns the authoritative guardian set (used by the module to build views).
     function getGuardians() external view returns (IERC7093.GuardianInfo[] memory) {
         return _guardians;
     }

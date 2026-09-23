@@ -18,14 +18,8 @@ import {IPermissionVerifier} from "./interfaces/IPermissionVerifier.sol";
 import {SimpleThresholdPolicyVerifier} from "./verifiers/SimpleThresholdPolicyVerifier.sol";
 
 /// @title RecoveryModule
-/// @notice ERC-7093 social recovery as an ERC-7579 executor module (type 2 only).
-/// One deployment serves many accounts; all state is keyed by `account`.
-/// Sole privilege on an installed account is ownership rotation via `recoverOwner`.
+/// @notice ERC-7093 social recovery as an ERC-7579 executor module, keyed by account.
 contract RecoveryModule is EIP712, IERC7579Module {
-    // ---------------------------------------------------------------------
-    // Types
-    // ---------------------------------------------------------------------
-
     struct RecoveryConfig {
         address policyVerifier;
         IERC7093.ThresholdConfig[] thresholdConfigs;
@@ -57,40 +51,23 @@ contract RecoveryModule is EIP712, IERC7579Module {
     string private constant _DOMAIN_NAME = "ERC7093Recovery";
     string private constant _DOMAIN_VERSION = "1";
 
-    // ---------------------------------------------------------------------
-    // Storage
-    // ---------------------------------------------------------------------
-
     mapping(address => AccountRecovery) internal accounts;
 
-    /// @notice Set on install, cleared on uninstall. Start/execute/guardian-cancel require it.
+    /// @dev Install-gated flag. Start/execute/guardian-cancel require it.
     mapping(address => bool) public installed;
-
-    // ---------------------------------------------------------------------
-    // Events
-    // ---------------------------------------------------------------------
 
     event RecoveryStarted(bytes newOwners, uint256 nonce, uint48 expiryTime);
     event RecoveryExecuted(bytes newOwners, uint256 nonce);
     event RecoveryCanceled(uint256 nonce);
     event RecoveryConfigured(address indexed account, uint256 indexed configIndex, address indexed policyVerifier);
 
-    // ---------------------------------------------------------------------
-    // Constructor
-    // ---------------------------------------------------------------------
-
     constructor() EIP712(_DOMAIN_NAME, _DOMAIN_VERSION) {}
-
-    // ---------------------------------------------------------------------
-    // ERC-7579 module interface (executor only)
-    // ---------------------------------------------------------------------
 
     function isModuleType(uint256 moduleTypeId) external pure returns (bool) {
         return moduleTypeId == MODULE_TYPE_EXECUTOR;
     }
 
-    /// @notice `data` is `abi.encode(RecoveryConfigArg[])`. Bumps the recovery nonce,
-    /// invalidating any pre-existing pending recovery or signatures for this account.
+    /// @notice `data` is `abi.encode(RecoveryConfigArg[])`.
     function onInstall(bytes calldata data) external {
         require(data.length > 0, "RecoveryModule: empty init");
         IERC7093.RecoveryConfigArg[] memory args = abi.decode(data, (IERC7093.RecoveryConfigArg[]));
@@ -103,11 +80,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         installed[msg.sender] = false;
     }
 
-    // ---------------------------------------------------------------------
-    // Configuration (owner-only, per account) — EIP-7093 updateGuardians
-    // ---------------------------------------------------------------------
-
-    /// @notice Replace ALL recovery configurations for `account` (owner only).
+    /// @notice Replace all recovery configurations for `account`. Owner only.
     function updateGuardians(address account, IERC7093.RecoveryConfigArg[] calldata args) external {
         require(account != address(0), "RecoveryModule: zero account");
         require(ISmartAccount(account).owner() == msg.sender, "RecoveryModule: not owner");
@@ -136,11 +109,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // EIP-712 recovery digest
-    // ---------------------------------------------------------------------
-
-    /// @notice EIP-712 digest guardians sign to authorize a recovery for `account`.
+    /// @notice EIP-712 digest guardians sign for `account`.
     function getRecoveryDigest(address account, uint256 configIndex, bytes calldata newOwner)
         public
         view
@@ -159,10 +128,6 @@ contract RecoveryModule is EIP712, IERC7579Module {
         );
     }
 
-    // ---------------------------------------------------------------------
-    // Recovery nonce (ERC-7093, per account, separate from ERC-4337)
-    // ---------------------------------------------------------------------
-
     function getRecoveryNonce(address account) external view returns (uint256) {
         return accounts[account].recoveryNonce;
     }
@@ -171,11 +136,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         return accounts[account].pending[configIndex];
     }
 
-    // ---------------------------------------------------------------------
-    // Lifecycle: startRecovery
-    // ---------------------------------------------------------------------
-
-    /// @notice Start a recovery for `account` (anyone may call; authorized by guardian sigs).
+    /// @notice Start a recovery for `account`. Anyone may call; guardian signatures authorize.
     function startRecovery(
         address account,
         uint256 configIndex,
@@ -212,7 +173,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         emit RecoveryStarted(newOwner, usedNonce, executeAfter);
     }
 
-    /// @dev Empty `signer` ⇒ SignatureChecker (EOA/ERC-1271); else the guardian's IPermissionVerifier.
+    /// @dev Empty `signer` means an EOA / ERC-1271 account checked directly.
     function _verifyGuardianSignatures(bytes32 digest, IERC7093.Permission[] calldata permissions) internal {
         for (uint256 i = 0; i < permissions.length; i++) {
             IERC7093.Permission calldata p = permissions[i];
@@ -231,7 +192,6 @@ contract RecoveryModule is EIP712, IERC7579Module {
         }
     }
 
-    /// @dev Highest threshold `<= weight` wins. Negative lockPeriod counts as 0.
     function _selectTier(IERC7093.ThresholdConfig[] storage tiers, uint64 weight)
         internal
         view
@@ -255,12 +215,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         return new uint64[](len);
     }
 
-    // ---------------------------------------------------------------------
-    // Lifecycle: executeRecovery
-    // ---------------------------------------------------------------------
-
-    /// @notice Execute a matured recovery (anyone may finalize). Rotates the owner via
-    /// the account's `executeFromExecutor` (mode 0 = single, revert-on-failure).
+    /// @notice Execute a matured recovery. Anyone may finalize after the timelock.
     function executeRecovery(address account, uint256 configIndex) external {
         require(account != address(0), "RecoveryModule: zero account");
         require(installed[account], "RecoveryModule: not installed");
@@ -277,11 +232,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         IERC7579Execution(account).executeFromExecutor(bytes32(0), execution);
     }
 
-    // ---------------------------------------------------------------------
-    // Lifecycle: cancelRecovery (owner-only, per account)
-    // ---------------------------------------------------------------------
-
-    /// @notice Cancel an active recovery (account owner only).
+    /// @notice Cancel an active recovery. Owner only.
     function cancelRecovery(address account, uint256 configIndex) external {
         require(account != address(0), "RecoveryModule: zero account");
         require(ISmartAccount(account).owner() == msg.sender, "RecoveryModule: not owner");
@@ -293,11 +244,7 @@ contract RecoveryModule is EIP712, IERC7579Module {
         emit RecoveryCanceled(nonce);
     }
 
-    // ---------------------------------------------------------------------
-    // Lifecycle: cancelRecoveryByGuardians (guardian-quorum cancellation)
-    // ---------------------------------------------------------------------
-
-    /// @notice Cancel an active recovery via guardian quorum (first/minimum threshold).
+    /// @notice Cancel an active recovery via guardian quorum (minimum threshold).
     function cancelRecoveryByGuardians(address account, uint256 configIndex, IERC7093.Permission[] calldata permissions)
         external
     {
@@ -320,10 +267,6 @@ contract RecoveryModule is EIP712, IERC7579Module {
         p.active = false;
         emit RecoveryCanceled(nonce);
     }
-
-    // ---------------------------------------------------------------------
-    // Views (EIP-7093 IRecoveryAccount surface, per account)
-    // ---------------------------------------------------------------------
 
     function getRecoveryStatus(address account, uint256 configIndex)
         external

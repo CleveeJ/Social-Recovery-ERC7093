@@ -7,9 +7,7 @@ import {MODULE_TYPE_VALIDATOR, MODULE_TYPE_EXECUTOR} from "@openzeppelin/contrac
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title SmartAccount
-/// @notice ERC-4337 + ERC-7579 modular smart account. Normal authorization lives in
-/// an installed validator module; social recovery in the installed ERC-7093 executor,
-/// whose only privilege is `recoverOwner`.
+/// @notice ERC-4337 / ERC-7579 account. Normal authorization lives in the validator; recovery in the executor.
 contract SmartAccount is Initializable, AccountERC7579 {
     address public owner;
     IEntryPoint private immutable _entryPoint;
@@ -35,8 +33,7 @@ contract SmartAccount is Initializable, AccountERC7579 {
         _installModule(MODULE_TYPE_VALIDATOR, validator, validatorData);
     }
 
-    /// @notice Rotate owner after validated ERC-7093 recovery.
-    /// Only an installed executor module, or the account itself via `executeFromExecutor`.
+    /// @notice Rotate owner after validated recovery. Only an installed executor, or the account itself.
     function recoverOwner(bytes calldata newOwner) external {
         if (msg.sender != address(this) && !this.isModuleInstalled(MODULE_TYPE_EXECUTOR, msg.sender, "")) {
             revert NotAuthorizedRecovery(msg.sender);
