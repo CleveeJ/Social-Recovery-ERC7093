@@ -1,0 +1,12 @@
+{
+  "solidity.packageDefaultDependenciesDirectory": "lib",
+  "solidity.packageDefaultDependenciesContractsDirectory": "src",
+  "solidity.remappings": [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@account-abstraction/contracts/=lib/account-abstraction/contracts/"
+  ],
+  "solidity.compileUsingRemoteVersion": "v0.8.26",
+  "solidity.defaultCompiler": "remote",
+  "solidity.enabledAsYouTypeCompilationErrorCheck": true
+}
