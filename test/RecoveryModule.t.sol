@@ -9,6 +9,7 @@ import {IEntryPoint as OZEntryPoint} from "@openzeppelin/contracts/interfaces/dr
 import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 
 import {RecoveryModule} from "../src/RecoveryModule.sol";
+import {IRecoveryModule} from "../src/interfaces/IRecoveryModule.sol";
 import {SimpleThresholdPolicyVerifier} from "../src/verifiers/SimpleThresholdPolicyVerifier.sol";
 
 import {IERC7093} from "../src/interfaces/IERC7093.sol";
@@ -302,7 +303,7 @@ contract RecoveryModuleTest is Test {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
 
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryStarted(no, 1, expected);
+        emit IRecoveryModule.RecoveryStarted(no, 1, expected);
         module.startRecovery(address(account), 0, no, p);
     }
 
@@ -336,7 +337,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         vm.warp(block.timestamp + LOCK + 1);
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryExecuted(abi.encode(newOwner), 1);
+        emit IRecoveryModule.RecoveryExecuted(abi.encode(newOwner), 1);
         module.executeRecovery(address(account), 0);
         assertEq(account.owner(), newOwner);
     }
@@ -495,7 +496,7 @@ contract RecoveryModuleTest is Test {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryCanceled(1);
+        emit IRecoveryModule.RecoveryCanceled(1);
         vm.prank(owner);
         module.cancelRecovery(address(account), 0);
         assertFalse(module.getPendingRecovery(address(account), 0).active);
@@ -514,7 +515,7 @@ contract RecoveryModuleTest is Test {
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
         IERC7093.Permission[] memory cp = _cancelPerms(address(account), 0, newOwner, _arr(pkA, pkB));
         vm.expectEmit(false, false, false, true, address(module));
-        emit RecoveryModule.RecoveryCanceled(1);
+        emit IRecoveryModule.RecoveryCanceled(1);
         module.cancelRecoveryByGuardians(address(account), 0, cp);
         assertFalse(module.getPendingRecovery(address(account), 0).active);
     }
