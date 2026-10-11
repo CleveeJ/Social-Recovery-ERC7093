@@ -5,11 +5,12 @@ import {AccountERC7579} from "@openzeppelin/contracts/account/extensions/draft-A
 import {IEntryPoint} from "@openzeppelin/contracts/interfaces/draft-IERC4337.sol";
 import {MODULE_TYPE_VALIDATOR, MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {ISmartAccount} from "./interfaces/ISmartAccount.sol";
 
 /// @title SmartAccount
 /// @notice ERC-4337 / ERC-7579 account. Normal authorization lives in the validator; recovery in the executor.
-contract SmartAccount is Initializable, AccountERC7579 {
-    address public owner;
+contract SmartAccount is Initializable, AccountERC7579, ISmartAccount {
+    address public override owner;
     IEntryPoint private immutable _entryPoint;
 
     event OwnerChanged(address indexed newOwner);
@@ -34,7 +35,7 @@ contract SmartAccount is Initializable, AccountERC7579 {
     }
 
     /// @notice Rotate owner after validated recovery. Only an installed executor, or the account itself.
-    function recoverOwner(bytes calldata newOwner) external {
+    function recoverOwner(bytes calldata newOwner) external override {
         if (msg.sender != address(this) && !this.isModuleInstalled(MODULE_TYPE_EXECUTOR, msg.sender, "")) {
             revert NotAuthorizedRecovery(msg.sender);
         }
