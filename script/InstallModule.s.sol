@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Script, console} from "forge-std/Script.sol";
 import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -9,6 +8,7 @@ import {MODULE_TYPE_EXECUTOR, MODULE_TYPE_VALIDATOR} from "@openzeppelin/contrac
 import {SmartAccount} from "../src/SmartAccount.sol";
 import {RecoveryModule} from "../src/RecoveryModule.sol";
 import {IERC7093} from "../src/interfaces/IERC7093.sol";
+import {ArtifactLog} from "./local/ArtifactLog.sol";
 
 /// @notice Installs the RecoveryModule executor via a genuine EntryPoint.handleOps
 /// UserOp signed by MainOwner. Reads deployed addresses from the environment
@@ -18,7 +18,11 @@ import {IERC7093} from "../src/interfaces/IERC7093.sol";
 /// Naming: MainOwner/MainAccount, G1/G2 (EOA), SCAGuardian1 (SCA, validator only,
 /// no module). Postfix: *_KEY = private key, *_ADDR = address.
 /// SCAGuardian1 must already be deployed + validator-initialized before running.
-contract InstallModule is Script {
+///
+/// Artifact: `script/local/logs/InstallModule.log` — EVENT line for the
+/// `RecoveryConfigured` emitted during `onInstall` inside `handleOps`.
+contract InstallModule is ArtifactLog {
+    string internal constant LOG_FILE = "script/local/logs/InstallModule.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
@@ -61,18 +65,15 @@ contract InstallModule is Script {
 
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = op;
+        _artifactInit(LOG_FILE);
+        vm.recordLogs();
         vm.broadcast(deployerKey);
         entryPoint.handleOps(ops, beneficiary);
+        _logRecorded(LOG_FILE);
 
         require(
             mainAccount.isModuleInstalled(MODULE_TYPE_VALIDATOR, address(validator), ""), "validator not installed"
         );
         require(mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed");
-
-        console.log("RecoveryNonce:", module.getRecoveryNonce(address(mainAccount)));
-        console.log("MainAccount:", address(mainAccount));
-        console.log("G1_ADDR:", g1Addr);
-        console.log("G2_ADDR:", g2Addr);
-        console.log("SCAGuardian1_ADDR:", scaGuardian1Addr);
     }
 }

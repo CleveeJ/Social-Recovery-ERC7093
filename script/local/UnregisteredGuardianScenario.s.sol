@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Script, console} from "forge-std/Script.sol";
 import {SmartAccount} from "../../src/SmartAccount.sol";
 import {RecoveryModule} from "../../src/RecoveryModule.sol";
 import {IERC7093} from "../../src/interfaces/IERC7093.sol";
+import {ArtifactLog} from "./ArtifactLog.sol";
 
-contract UnregisteredGuardianScenario is Script {
+/// @notice Attack: G1 plus an unregistered stranger must revert.
+/// Artifact: `script/local/logs/UnregisteredGuardianScenario.log` — ERROR line
+contract UnregisteredGuardianScenario is ArtifactLog {
+    string internal constant LOG_FILE = "script/local/logs/UnregisteredGuardianScenario.log";
+
     uint256 constant STRANGER_KEY = 0x9999999999999999999999999999999999999999999999999999999999999999;
 
     function _permEOA(bytes32 digest, uint256 gKey) internal pure returns (IERC7093.Permission memory) {
@@ -15,6 +19,7 @@ contract UnregisteredGuardianScenario is Script {
     }
 
     function run() external {
+        _artifactInit(LOG_FILE);
         uint256 g1Key = vm.envUint("G1_KEY");
         address newOwnerAddr = vm.addr(vm.envUint("NEW_OWNER_KEY"));
 
@@ -31,10 +36,9 @@ contract UnregisteredGuardianScenario is Script {
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("stranger not rejected");
         } catch Error(string memory reason) {
-            console.log("Stranger reverted as expected:", reason);
+            _artifactError(LOG_FILE, "UnregisteredGuardian G1+stranger", reason);
         }
         require(!module.getPendingRecovery(address(mainAccount), 0).active, "recovery created");
         require(mainAccount.owner() == ownerBefore, "owner changed");
-        console.log("Owner unchanged:", mainAccount.owner());
     }
 }

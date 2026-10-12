@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Script, console} from "forge-std/Script.sol";
 import {IEntryPoint as OZEntryPoint} from "@openzeppelin/contracts/interfaces/draft-IERC4337.sol";
 import {MODULE_TYPE_EXECUTOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
 import {SmartAccount} from "../../src/SmartAccount.sol";
@@ -9,6 +8,7 @@ import {SimpleECDSAValidator} from "../../src/validators/SimpleECDSAValidator.so
 import {RecoveryModule} from "../../src/RecoveryModule.sol";
 import {SimpleThresholdPolicyVerifier} from "../../src/verifiers/SimpleThresholdPolicyVerifier.sol";
 import {IERC7093} from "../../src/interfaces/IERC7093.sol";
+import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Minimal local stand-in for the EntryPoint: only forwards module
 /// installation so the account's `onlyEntryPointOrSelf` gate passes on Anvil.
@@ -29,7 +29,8 @@ contract LocalEntryPoint {
 /// Naming: MainOwner/MainAccount, G1/G2 (EOA), SCAGuardian1 (SCA),
 /// SCAG1Owner (EOA owner of SCAGuardian1), NewOwner.
 /// Postfix discipline: *_KEY = private key (vm.envUint), *_ADDR = address (vm.envAddress).
-contract DeployLocal is Script {
+contract DeployLocal is ArtifactLog {
+    string internal constant LOG_FILE = "script/local/logs/DeployLocal.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
@@ -71,16 +72,18 @@ contract DeployLocal is Script {
             mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed"
         );
 
-        console.log("EntryPoint:", address(entryPoint));
-        console.log("Validator:", address(validator));
-        console.log("PolicyVerifier:", address(verifier));
-        console.log("RecoveryModule:", address(module));
-        console.log("MainAccount:", address(mainAccount));
-        console.log("MainOwner_ADDR:", mainOwnerAddr);
-        console.log("G1_ADDR:", g1Addr);
-        console.log("G2_ADDR:", g2Addr);
-        console.log("SCAGuardian1_ADDR:", address(scaGuardian1));
-        console.log("SCAG1Owner_ADDR:", scag1OwnerAddr);
+        // Constructors emit no events: addresses are the artifact (no-event case).
+        _artifactInit(LOG_FILE);
+        _artifact(LOG_FILE, string.concat("DEPLOY EntryPoint=", vm.toString(address(entryPoint))));
+        _artifact(LOG_FILE, string.concat("DEPLOY Validator=", vm.toString(address(validator))));
+        _artifact(LOG_FILE, string.concat("DEPLOY PolicyVerifier=", vm.toString(address(verifier))));
+        _artifact(LOG_FILE, string.concat("DEPLOY RecoveryModule=", vm.toString(address(module))));
+        _artifact(LOG_FILE, string.concat("DEPLOY MainAccount=", vm.toString(address(mainAccount))));
+        _artifact(LOG_FILE, string.concat("DEPLOY MainOwner_ADDR=", vm.toString(mainOwnerAddr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY G1_ADDR=", vm.toString(g1Addr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY G2_ADDR=", vm.toString(g2Addr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY SCAGuardian1_ADDR=", vm.toString(address(scaGuardian1))));
+        _artifact(LOG_FILE, string.concat("DEPLOY SCAG1Owner_ADDR=", vm.toString(scag1OwnerAddr)));
 
         string memory envPath = "script/local/deployed-local.env";
         vm.writeFile(envPath, string.concat("ENTRYPOINT_ADDR=", vm.toString(address(entryPoint)), "\n"));

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Script, console} from "forge-std/Script.sol";
 import {IEntryPoint as OZEntryPoint} from "@openzeppelin/contracts/interfaces/draft-IERC4337.sol";
 import {SmartAccount} from "../../src/SmartAccount.sol";
 import {SimpleECDSAValidator} from "../../src/validators/SimpleECDSAValidator.sol";
 import {RecoveryModule} from "../../src/RecoveryModule.sol";
 import {SimpleThresholdPolicyVerifier} from "../../src/verifiers/SimpleThresholdPolicyVerifier.sol";
+import {ArtifactLog} from "../local/ArtifactLog.sol";
 
 /// @notice Sepolia deployment: validator + stateless verifier + RecoveryModule +
 /// MainAccount (owned by MainOwner) + SCAGuardian1 (owned by SCAG1Owner, validator
@@ -23,7 +23,8 @@ import {SimpleThresholdPolicyVerifier} from "../../src/verifiers/SimpleThreshold
 /// Writes: script/sepolia/deployed-sepolia.env with canonical *_ADDR set.
 /// Post-run (manual, funded Deployer): fund MainAccount + EntryPoint.depositTo(MainAccount),
 /// then run InstallModule.s.sol to install the [G1, G2, SCAGuardian1] config.
-contract DeploySepolia is Script {
+contract DeploySepolia is ArtifactLog {
+    string internal constant LOG_FILE = "script/local/logs/DeploySepolia.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         address entryPointAddr = vm.envAddress("ENTRYPOINT_ADDR");
@@ -43,16 +44,18 @@ contract DeploySepolia is Script {
         scaGuardian1.initializeAccount(address(validator), "");
         vm.stopBroadcast();
 
-        console.log("EntryPoint:", entryPointAddr);
-        console.log("Validator:", address(validator));
-        console.log("PolicyVerifier:", address(verifier));
-        console.log("RecoveryModule:", address(module));
-        console.log("MainAccount:", address(mainAccount));
-        console.log("MainOwner_ADDR:", mainOwnerAddr);
-        console.log("G1_ADDR:", g1Addr);
-        console.log("G2_ADDR:", g2Addr);
-        console.log("SCAGuardian1_ADDR:", address(scaGuardian1));
-        console.log("SCAG1Owner_ADDR:", scag1OwnerAddr);
+        // Constructors emit no events: addresses are the artifact (no-event case).
+        _artifactInit(LOG_FILE);
+        _artifact(LOG_FILE, string.concat("DEPLOY EntryPoint=", vm.toString(entryPointAddr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY Validator=", vm.toString(address(validator))));
+        _artifact(LOG_FILE, string.concat("DEPLOY PolicyVerifier=", vm.toString(address(verifier))));
+        _artifact(LOG_FILE, string.concat("DEPLOY RecoveryModule=", vm.toString(address(module))));
+        _artifact(LOG_FILE, string.concat("DEPLOY MainAccount=", vm.toString(address(mainAccount))));
+        _artifact(LOG_FILE, string.concat("DEPLOY MainOwner_ADDR=", vm.toString(mainOwnerAddr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY G1_ADDR=", vm.toString(g1Addr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY G2_ADDR=", vm.toString(g2Addr)));
+        _artifact(LOG_FILE, string.concat("DEPLOY SCAGuardian1_ADDR=", vm.toString(address(scaGuardian1))));
+        _artifact(LOG_FILE, string.concat("DEPLOY SCAG1Owner_ADDR=", vm.toString(scag1OwnerAddr)));
 
         string memory envPath = "script/sepolia/deployed-sepolia.env";
         vm.writeFile(envPath, string.concat("ENTRYPOINT_ADDR=", vm.toString(entryPointAddr), "\n"));

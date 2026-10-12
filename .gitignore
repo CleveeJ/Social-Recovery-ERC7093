@@ -13,3 +13,6 @@ docs/
 # Dotenv file
 **/.env*
 **/*.env
+
+# Log File
+script/local/logs/*.log 

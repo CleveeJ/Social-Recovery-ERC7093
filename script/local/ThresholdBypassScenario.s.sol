@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Script, console} from "forge-std/Script.sol";
 import {SmartAccount} from "../../src/SmartAccount.sol";
 import {RecoveryModule} from "../../src/RecoveryModule.sol";
 import {IERC7093} from "../../src/interfaces/IERC7093.sol";
+import {ArtifactLog} from "./ArtifactLog.sol";
 
-contract ThresholdBypassScenario is Script {
+/// @notice Attack: a single guardian (weight 1 < threshold 2) must revert.
+/// Artifact: `script/local/logs/ThresholdBypassScenario.log` — ERROR line only;
+/// reverts emit no events.
+contract ThresholdBypassScenario is ArtifactLog {
+    string internal constant LOG_FILE = "script/local/logs/ThresholdBypassScenario.log";
+
     function run() external {
+        _artifactInit(LOG_FILE);
         uint256 g1Key = vm.envUint("G1_KEY");
         address newOwnerAddr = vm.addr(vm.envUint("NEW_OWNER_KEY"));
 
@@ -25,10 +31,9 @@ contract ThresholdBypassScenario is Script {
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("threshold not enforced");
         } catch Error(string memory reason) {
-            console.log("Threshold bypass reverted as expected:", reason);
+            _artifactError(LOG_FILE, "ThresholdBypass solo-G1", reason);
         }
         require(!module.getPendingRecovery(address(mainAccount), 0).active, "recovery created");
         require(mainAccount.owner() == ownerBefore, "owner changed");
-        console.log("Owner unchanged:", mainAccount.owner());
     }
 }
