@@ -11,7 +11,7 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 /// @notice Sepolia deployment: validator + stateless verifier + RecoveryModule +
 /// MainAccount (owned by MainOwner) + SCAGuardian1 (owned by SCAG1Owner, validator
 /// only, no RecoveryModule). Uses the canonical EntryPoint V07 — never the local
-/// forwarder. Module installation happens separately via InstallModule.s.sol
+/// forwarder. Module installation happens separately via InstallModuleSepolia.s.sol
 /// (genuine EntryPoint.handleOps UserOp signed by MainOwner).
 ///
 /// Naming: MainOwner/MainAccount, G1/G2 (EOA guardians, addresses only here),
@@ -22,9 +22,9 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 ///   G1_ADDR, G2_ADDR, SCAG1OWNER_ADDR.
 /// Writes: script/sepolia/deployed-sepolia.env with canonical *_ADDR set.
 /// Post-run (manual, funded Deployer): fund MainAccount + EntryPoint.depositTo(MainAccount),
-/// then run InstallModule.s.sol to install the [G1, G2, SCAGuardian1] config.
+/// then run InstallModuleSepolia.s.sol to install the [G1, G2, SCAGuardian1] config.
 contract DeploySepolia is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/DeploySepolia.log";
+    string internal constant LOG_FILE = "script/sepolia/logs/DeploySepolia.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         address entryPointAddr = vm.envAddress("ENTRYPOINT_ADDR");
@@ -45,6 +45,7 @@ contract DeploySepolia is ArtifactLog {
         vm.stopBroadcast();
 
         // Constructors emit no events: addresses are the artifact (no-event case).
+        vm.createDir("script/sepolia/logs", true);
         _artifactInit(LOG_FILE);
         _artifact(LOG_FILE, string.concat("DEPLOY EntryPoint=", vm.toString(entryPointAddr)));
         _artifact(LOG_FILE, string.concat("DEPLOY Validator=", vm.toString(address(validator))));

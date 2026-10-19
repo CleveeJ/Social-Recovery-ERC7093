@@ -5,10 +5,10 @@ import {EntryPoint} from "@account-abstraction/contracts/core/EntryPoint.sol";
 import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MODULE_TYPE_EXECUTOR, MODULE_TYPE_VALIDATOR} from "@openzeppelin/contracts/interfaces/draft-IERC7579.sol";
-import {SmartAccount} from "../src/SmartAccount.sol";
-import {RecoveryModule} from "../src/RecoveryModule.sol";
-import {IERC7093} from "../src/interfaces/IERC7093.sol";
-import {ArtifactLog} from "./local/ArtifactLog.sol";
+import {SmartAccount} from "../../src/SmartAccount.sol";
+import {RecoveryModule} from "../../src/RecoveryModule.sol";
+import {IERC7093} from "../../src/interfaces/IERC7093.sol";
+import {ArtifactLog} from "../local/ArtifactLog.sol";
 
 /// @notice Installs the RecoveryModule executor via a genuine EntryPoint.handleOps
 /// UserOp signed by MainOwner. Reads deployed addresses from the environment
@@ -19,10 +19,10 @@ import {ArtifactLog} from "./local/ArtifactLog.sol";
 /// no module). Postfix: *_KEY = private key, *_ADDR = address.
 /// SCAGuardian1 must already be deployed + validator-initialized before running.
 ///
-/// Artifact: `script/local/logs/InstallModule.log` — EVENT line for the
+/// Artifact: `script/sepolia/logs/InstallModule.log` — EVENT line for the
 /// `RecoveryConfigured` emitted during `onInstall` inside `handleOps`.
-contract InstallModule is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/InstallModule.log";
+contract InstallModuleSepolia is ArtifactLog {
+    string internal constant LOG_FILE = "script/sepolia/logs/InstallModule.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
@@ -57,7 +57,7 @@ contract InstallModule is ArtifactLog {
         op.callData = installCalldata;
         op.accountGasLimits = bytes32((uint256(500_000) << 128) | uint256(500_000));
         op.preVerificationGas = 50_000;
-        op.gasFees = bytes32((uint256(1 gwei) << 128) | uint256(2 gwei));
+        op.gasFees = bytes32((uint256(2 gwei) << 128) | uint256(25 gwei));
 
         bytes32 userOpHash = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(mainOwnerKey, MessageHashUtils.toEthSignedMessageHash(userOpHash));
@@ -65,6 +65,7 @@ contract InstallModule is ArtifactLog {
 
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = op;
+        vm.createDir("script/sepolia/logs", true);
         _artifactInit(LOG_FILE);
         vm.recordLogs();
         vm.broadcast(deployerKey);

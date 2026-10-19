@@ -15,4 +15,5 @@ docs/
 **/*.env
 
 # Log File
-script/local/logs/*.log 
+script/local/logs/*.log
+script/sepolia/logs/*.log

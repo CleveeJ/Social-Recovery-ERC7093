@@ -12,7 +12,7 @@ import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Minimal local stand-in for the EntryPoint: only forwards module
 /// installation so the account's `onlyEntryPointOrSelf` gate passes on Anvil.
-/// (Live nets reuse the canonical EntryPoint instead; see InstallModule.s.sol.)
+/// (Live nets reuse the canonical EntryPoint instead; see InstallModuleSepolia.s.sol.)
 contract LocalEntryPoint {
     function installFor(address account, uint256 moduleTypeId, address module, bytes calldata initData) external {
         SmartAccount(payable(account)).installModule(moduleTypeId, module, initData);
