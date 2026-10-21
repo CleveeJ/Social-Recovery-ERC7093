@@ -66,10 +66,7 @@ contract RecoveryModule is EIP712, IERC7579Module, IRecoveryModule {
     }
 
     /// @notice Replace all recovery configurations for `account`. Owner only.
-    function updateGuardians(address account, IERC7093.RecoveryConfigArg[] calldata args)
-        external
-        override
-    {
+    function updateGuardians(address account, IERC7093.RecoveryConfigArg[] calldata args) external override {
         require(account != address(0), "RecoveryModule: zero account");
         require(ISmartAccount(account).owner() == msg.sender, "RecoveryModule: not owner");
         _configure(account, args);
@@ -78,9 +75,14 @@ contract RecoveryModule is EIP712, IERC7579Module, IRecoveryModule {
 
     function _configure(address account, IERC7093.RecoveryConfigArg[] memory args) internal {
         require(args.length > 0, "RecoveryModule: empty configs");
-        delete accounts[account];
 
         AccountRecovery storage ar = accounts[account];
+        uint256 oldLen = ar.configs.length;
+        for (uint256 i = 0; i < oldLen; i++) {
+            delete ar.pending[i];
+        }
+        delete ar.configs;
+
         for (uint256 i = 0; i < args.length; i++) {
             IERC7093.RecoveryConfigArg memory arg = args[i];
             require(arg.guardianInfos.length > 0, "RecoveryModule: empty guardians");
@@ -185,6 +187,7 @@ contract RecoveryModule is EIP712, IERC7579Module, IRecoveryModule {
         require(account != address(0), "RecoveryModule: zero account");
         require(installed[account], "RecoveryModule: not installed");
         AccountRecovery storage ar = accounts[account];
+        require(configIndex < ar.configs.length, "RecoveryModule: invalid configIndex");
         PendingRecovery storage p = ar.pending[configIndex];
         require(p.active, "RecoveryModule: no active recovery");
         require(block.timestamp >= p.executeAfter, "RecoveryModule: time lock active");
@@ -217,6 +220,7 @@ contract RecoveryModule is EIP712, IERC7579Module, IRecoveryModule {
         require(account != address(0), "RecoveryModule: zero account");
         require(installed[account], "RecoveryModule: not installed");
         AccountRecovery storage ar = accounts[account];
+        require(configIndex < ar.configs.length, "RecoveryModule: invalid configIndex");
         PendingRecovery storage p = ar.pending[configIndex];
         require(p.active, "RecoveryModule: no active recovery");
         IERC7093.RecoveryConfigArg storage cfg = ar.configs[configIndex];

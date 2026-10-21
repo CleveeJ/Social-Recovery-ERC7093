@@ -48,12 +48,27 @@ contract DeployLocal is ArtifactLog {
         SimpleThresholdPolicyVerifier verifier = new SimpleThresholdPolicyVerifier();
         RecoveryModule module = new RecoveryModule();
         SmartAccount mainAccount = new SmartAccount(OZEntryPoint(address(entryPoint)), mainOwnerAddr);
-        mainAccount.initializeAccount(address(validator), "");
 
         // SCAGuardian1: second SmartAccount owned by SCAG1Owner, validator only.
-        SmartAccount scaGuardian1 =
-            new SmartAccount(OZEntryPoint(address(entryPoint)), scag1OwnerAddr);
+        SmartAccount scaGuardian1 = new SmartAccount(OZEntryPoint(address(entryPoint)), scag1OwnerAddr);
+
+        if (mainOwnerAddr.balance < 0.001 ether) {
+            (bool ok,) = payable(mainOwnerAddr).call{value: 1 ether}("");
+            require(ok, "fund main owner failed");
+        }
+        if (scag1OwnerAddr.balance < 0.001 ether) {
+            (bool ok,) = payable(scag1OwnerAddr).call{value: 1 ether}("");
+            require(ok, "fund scag1 owner failed");
+        }
+        vm.stopBroadcast();
+
+        vm.startBroadcast(mainOwnerKey);
+        mainAccount.initializeAccount(address(validator), "");
+        vm.stopBroadcast();
+
+        vm.startBroadcast(scag1OwnerKey);
         scaGuardian1.initializeAccount(address(validator), "");
+        vm.stopBroadcast();
 
         IERC7093.GuardianInfo[] memory guardians = new IERC7093.GuardianInfo[](3);
         guardians[0] = IERC7093.GuardianInfo(IERC7093.Identity(g1Addr, ""), 1);
@@ -64,12 +79,11 @@ contract DeployLocal is ArtifactLog {
         IERC7093.RecoveryConfigArg[] memory args = new IERC7093.RecoveryConfigArg[](1);
         args[0] = IERC7093.RecoveryConfigArg(address(verifier), guardians, tiers);
 
+        vm.startBroadcast(deployerKey);
         entryPoint.installFor(address(mainAccount), MODULE_TYPE_EXECUTOR, address(module), abi.encode(args));
         vm.stopBroadcast();
 
-        require(
-            mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed"
-        );
+        require(mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed");
 
         // Constructors emit no events: addresses are the artifact (no-event case).
         _artifactInit();

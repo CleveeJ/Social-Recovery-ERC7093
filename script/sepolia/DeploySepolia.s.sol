@@ -17,29 +17,48 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 /// Naming: MainOwner/MainAccount, G1/G2 (EOA guardians, addresses only here),
 /// SCAGuardian1 (SCA), SCAG1Owner. Postfix: *_KEY = private key, *_ADDR = address.
 ///
-/// Env inputs (all *_ADDR except DEPLOYER_KEY):
-///   DEPLOYER_KEY, ENTRYPOINT_ADDR (canonical V07), MAIN_OWNER_ADDR,
-///   G1_ADDR, G2_ADDR, SCAG1OWNER_ADDR.
+/// Env inputs:
+///   DEPLOYER_KEY, MAIN_OWNER_KEY, SCAG1OWNER_KEY, ENTRYPOINT_ADDR (canonical V07),
+///   MAIN_OWNER_ADDR, G1_ADDR, G2_ADDR, SCAG1OWNER_ADDR.
 /// Writes: script/sepolia/deployed-sepolia.env with canonical *_ADDR set.
 /// Post-run (manual, funded Deployer): fund MainAccount + EntryPoint.depositTo(MainAccount),
 /// then run InstallModuleSepolia.s.sol to install the [G1, G2, SCAGuardian1] config.
 contract DeploySepolia is ArtifactLog {
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
+        uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
+        uint256 scag1OwnerKey = vm.envUint("SCAG1OWNER_KEY");
         address entryPointAddr = vm.envAddress("ENTRYPOINT_ADDR");
         address mainOwnerAddr = vm.envAddress("MAIN_OWNER_ADDR");
         address g1Addr = vm.envAddress("G1_ADDR");
         address g2Addr = vm.envAddress("G2_ADDR");
         address scag1OwnerAddr = vm.envAddress("SCAG1OWNER_ADDR");
 
+        require(vm.addr(mainOwnerKey) == mainOwnerAddr, "main owner key mismatch");
+        require(vm.addr(scag1OwnerKey) == scag1OwnerAddr, "scag1 owner key mismatch");
+
         vm.startBroadcast(deployerKey);
         SimpleECDSAValidator validator = new SimpleECDSAValidator();
         SimpleThresholdPolicyVerifier verifier = new SimpleThresholdPolicyVerifier();
         RecoveryModule module = new RecoveryModule();
         SmartAccount mainAccount = new SmartAccount(OZEntryPoint(entryPointAddr), mainOwnerAddr);
-        mainAccount.initializeAccount(address(validator), "");
-
         SmartAccount scaGuardian1 = new SmartAccount(OZEntryPoint(entryPointAddr), scag1OwnerAddr);
+
+        if (mainOwnerAddr.balance < 0.001 ether) {
+            (bool ok,) = payable(mainOwnerAddr).call{value: 0.005 ether}("");
+            require(ok, "fund main owner failed");
+        }
+        if (scag1OwnerAddr.balance < 0.001 ether) {
+            (bool ok,) = payable(scag1OwnerAddr).call{value: 0.005 ether}("");
+            require(ok, "fund scag1 owner failed");
+        }
+        vm.stopBroadcast();
+
+        vm.startBroadcast(mainOwnerKey);
+        mainAccount.initializeAccount(address(validator), "");
+        vm.stopBroadcast();
+
+        vm.startBroadcast(scag1OwnerKey);
         scaGuardian1.initializeAccount(address(validator), "");
         vm.stopBroadcast();
 

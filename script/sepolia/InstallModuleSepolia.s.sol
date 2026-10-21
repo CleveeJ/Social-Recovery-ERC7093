@@ -54,8 +54,8 @@ contract InstallModuleSepolia is ArtifactLog {
         op.sender = address(mainAccount);
         op.nonce = (uint256(uint160(validator)) << 96);
         op.callData = installCalldata;
-        op.accountGasLimits = bytes32((uint256(500_000) << 128) | uint256(500_000));
-        op.preVerificationGas = 50_000;
+        op.accountGasLimits = bytes32((uint256(500_000) << 128) | uint256(3_000_000));
+        op.preVerificationGas = 100_000;
         op.gasFees = bytes32((uint256(2 gwei) << 128) | uint256(25 gwei));
 
         bytes32 userOpHash = entryPoint.getUserOpHash(op);

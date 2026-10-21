@@ -81,6 +81,7 @@ contract SmartAccountTest is Test {
 
         account = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
         vm.deal(address(account), 10 ether);
+        vm.prank(owner);
         account.initializeAccount(address(validator), "");
 
         IERC7093.RecoveryConfigArg[] memory recoveryArgs = _configArgs();
@@ -89,6 +90,7 @@ contract SmartAccountTest is Test {
 
         mockEntryPoint = new MockEntryPoint();
         mockAccount = new SmartAccount(OZEntryPoint(address(mockEntryPoint)), owner);
+        vm.prank(owner);
         mockAccount.initializeAccount(address(validator), "");
     }
 
@@ -219,10 +221,23 @@ contract SmartAccountTest is Test {
 
     function test_OnInstallEmptyDataReverts() public {
         SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
+        vm.prank(owner);
         acc2.initializeAccount(address(validator), "");
         vm.prank(address(acc2));
         vm.expectRevert("RecoveryModule: empty init");
         acc2.installModule(MODULE_TYPE_EXECUTOR, address(module), "");
+    }
+
+    function test_InitializeAccountOnlyOwner() public {
+        SmartAccount acc = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
+
+        vm.prank(other);
+        vm.expectRevert(abi.encodeWithSelector(SmartAccount.NotOwner.selector, other));
+        acc.initializeAccount(address(validator), "");
+
+        vm.prank(owner);
+        acc.initializeAccount(address(validator), "");
+        assertTrue(acc.isModuleInstalled(MODULE_TYPE_VALIDATOR, address(validator), ""));
     }
 
     function test_UnauthorizedInstallReverts() public {
@@ -412,6 +427,7 @@ contract SmartAccountTest is Test {
 
     function test_ConfigWithoutInstallDoesNotAuthorizeRecovery() public {
         SmartAccount acc2 = new SmartAccount(OZEntryPoint(address(entryPoint)), owner);
+        vm.prank(owner);
         acc2.initializeAccount(address(validator), "");
         IERC7093.RecoveryConfigArg[] memory args = _configArgs();
         vm.prank(owner);

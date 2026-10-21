@@ -18,6 +18,7 @@ contract SmartAccount is Initializable, AccountERC7579, ISmartAccount {
     error ZeroOwner();
     error ZeroEntryPoint();
     error NotAuthorizedRecovery(address caller);
+    error NotOwner(address caller);
 
     constructor(IEntryPoint entryPoint_, address initialOwner) {
         if (address(entryPoint_) == address(0)) revert ZeroEntryPoint();
@@ -30,7 +31,10 @@ contract SmartAccount is Initializable, AccountERC7579, ISmartAccount {
         return _entryPoint;
     }
 
+    // SmartAccount is deployed directly; the constructor sets the owner and this function is owner-only.
+    // forge-lint: disable-next-line(unprotected-initializer)
     function initializeAccount(address validator, bytes calldata validatorData) external initializer {
+        if (msg.sender != owner) revert NotOwner(msg.sender);
         _installModule(MODULE_TYPE_VALIDATOR, validator, validatorData);
     }
 

@@ -554,6 +554,42 @@ contract RecoveryModuleTest is Test {
         assertFalse(module.getPendingRecovery(address(account), 1).active);
     }
 
+    function test_UpdateGuardiansClearsPendingAndPreservesNonce() public {
+        IERC7093.Permission[] memory oldPerms = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        module.startRecovery(address(account), 0, abi.encode(newOwner), oldPerms);
+        assertTrue(module.getPendingRecovery(address(account), 0).active);
+        assertEq(module.getRecoveryNonce(address(account)), 2);
+
+        IERC7093.RecoveryConfigArg[] memory args = _installArgs();
+        vm.prank(owner);
+        module.updateGuardians(address(account), args);
+
+        assertFalse(module.getPendingRecovery(address(account), 0).active);
+        assertEq(module.getRecoveryNonce(address(account)), 2);
+
+        vm.expectRevert("RecoveryModule: bad guardian signature");
+        module.startRecovery(address(account), 0, abi.encode(newOwner), oldPerms);
+
+        IERC7093.Permission[] memory freshPerms = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
+        module.startRecovery(address(account), 0, abi.encode(newOwner), freshPerms);
+        assertTrue(module.getPendingRecovery(address(account), 0).active);
+    }
+
+    function test_UpdateGuardiansRejectsStaleConfigIndex() public {
+        _configureTwoConfigs();
+        IERC7093.Permission[] memory p = _permsValid(address(account), 1, newOwner, _arr(pkA));
+        module.startRecovery(address(account), 1, abi.encode(newOwner), p);
+        assertTrue(module.getPendingRecovery(address(account), 1).active);
+
+        IERC7093.RecoveryConfigArg[] memory args = _installArgs();
+        vm.prank(owner);
+        module.updateGuardians(address(account), args);
+
+        assertFalse(module.getPendingRecovery(address(account), 1).active);
+        vm.expectRevert("RecoveryModule: invalid configIndex");
+        module.executeRecovery(address(account), 1);
+    }
+
     function test_RestartSameConfigWhileActiveRejected() public {
         IERC7093.Permission[] memory p = _permsValid(address(account), 0, newOwner, _arr(pkA, pkB));
         module.startRecovery(address(account), 0, abi.encode(newOwner), p);
