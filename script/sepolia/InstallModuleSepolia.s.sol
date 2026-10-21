@@ -19,10 +19,9 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 /// no module). Postfix: *_KEY = private key, *_ADDR = address.
 /// SCAGuardian1 must already be deployed + validator-initialized before running.
 ///
-/// Artifact: `script/sepolia/logs/InstallModule.log` — EVENT line for the
+/// Transcript: `script/sepolia/logs/sep-02-install.log` — EVENT line for the
 /// `RecoveryConfigured` emitted during `onInstall` inside `handleOps`.
 contract InstallModuleSepolia is ArtifactLog {
-    string internal constant LOG_FILE = "script/sepolia/logs/InstallModule.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
@@ -65,16 +64,39 @@ contract InstallModuleSepolia is ArtifactLog {
 
         PackedUserOperation[] memory ops = new PackedUserOperation[](1);
         ops[0] = op;
-        vm.createDir("script/sepolia/logs", true);
-        _artifactInit(LOG_FILE);
+        _artifactInit();
+        _artifact(
+            string.concat(
+                "CTX account=",
+                vm.toString(address(mainAccount)),
+                " module=",
+                vm.toString(address(module)),
+                " threshold=",
+                vm.toString(uint256(threshold)),
+                " lock=",
+                vm.toString(lockSeconds),
+                " guardians=G1,G2,SCAGuardian1"
+            )
+        );
+        _artifact(
+            string.concat(
+                "USEROP sender=",
+                vm.toString(address(mainAccount)),
+                " nonce=",
+                vm.toString(op.nonce),
+                " hash=",
+                vm.toString(userOpHash)
+            )
+        );
         vm.recordLogs();
         vm.broadcast(deployerKey);
         entryPoint.handleOps(ops, beneficiary);
-        _logRecorded(LOG_FILE);
+        _logRecorded(address(module));
 
         require(
             mainAccount.isModuleInstalled(MODULE_TYPE_VALIDATOR, address(validator), ""), "validator not installed"
         );
         require(mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed");
+        _artifactEnd();
     }
 }

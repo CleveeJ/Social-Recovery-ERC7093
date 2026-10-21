@@ -8,12 +8,10 @@ import {IERC7093} from "../../src/interfaces/IERC7093.sol";
 import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Happy-path start: G1 (EOA) + SCAGuardian1 (SCA) reach 2-of-3 quorum.
-/// Artifact: `script/local/logs/HappyScenarioStart.log` — EVENT lines decoded
+/// Transcript: `script/local/logs/01-happy-start.log` — EVENT lines decoded
 /// from recorded on-chain logs, ERROR line from the caught timelock revert
 /// (reverts emit no events; EIP-7093 defines no errors).
 contract HappyScenarioStart is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/HappyScenarioStart.log";
-
     function _permEOA(bytes32 digest, uint256 gKey) internal pure returns (IERC7093.Permission memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(gKey, digest);
         return IERC7093.Permission(IERC7093.Identity(vm.addr(gKey), ""), abi.encodePacked(r, s, v));
@@ -32,7 +30,7 @@ contract HappyScenarioStart is ArtifactLog {
     }
 
     function run() external {
-        _artifactInit(LOG_FILE);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
         uint256 g1Key = vm.envUint("G1_KEY");
         uint256 scag1OwnerKey = vm.envUint("SCAG1OWNER_KEY");
@@ -52,13 +50,18 @@ contract HappyScenarioStart is ArtifactLog {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms);
-        _logRecorded(LOG_FILE);
+        _logRecorded(address(module));
         require(module.getPendingRecovery(address(mainAccount), 0).active, "not pending");
 
         try module.executeRecovery(address(mainAccount), 0) {
             revert("timelock not enforced");
         } catch Error(string memory reason) {
-            _artifactError(LOG_FILE, "EarlyExecute", reason);
+            _artifactError("EarlyExecute", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("EarlyExecute", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("EarlyExecute", _customReason(data));
         }
+        _artifactEnd();
     }
 }

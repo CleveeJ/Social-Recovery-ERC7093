@@ -9,7 +9,7 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 
 /// @notice Shared helpers for the Sepolia scenario suite (ping-pong happy path +
 /// stateless and stateful attacks). Every scenario:
-///   1. opens its own artifact file under `script/sepolia/logs/`,
+///   1. prints a RUN header for the evidence transcript,
 ///   2. runs `_preflight` — cancels any stale pending recovery with its current
 ///      owner (owner-aware: MainOwner or NewOwner, whichever the ping-pong
 ///      rotation left in charge),
@@ -17,26 +17,16 @@ import {ArtifactLog} from "../local/ArtifactLog.sol";
 /// Re-signing after preflight is mandatory: digests bind the nonce, so any
 /// signature made before a startRecovery lands is dead afterwards.
 abstract contract SepoliaScenarioBase is ArtifactLog {
-    string internal constant LOG_DIR = "script/sepolia/logs";
-
-    /// @dev Open a fresh artifact file under script/sepolia/logs (created if missing).
-    function _initLog(string memory name) internal returns (string memory file) {
-        vm.createDir(LOG_DIR, true);
-        file = string.concat(LOG_DIR, "/", name);
-        _artifactInit(file);
-    }
-
     /// @dev Cancel any active pending recovery before the scenario acts. The
     /// canceller must be the account's current owner, so the signing key is
     /// resolved from live owner() (MainOwner, or NewOwner after a rotation).
-    function _preflight(address account, RecoveryModule module, string memory logFile) internal {
+    function _preflight(address account, RecoveryModule module) internal {
         IERC7093.RecoveryConfigArg[] memory configs = module.getRecoveryConfigs(account);
         for (uint256 i = 0; i < configs.length; i++) {
             RecoveryModule.PendingRecovery memory pending = module.getPendingRecovery(account, i);
             if (!pending.active) continue;
             address owner = SmartAccount(payable(account)).owner();
             _artifact(
-                logFile,
                 string.concat(
                     "PREFLIGHT cancel stale pending nonce=",
                     vm.toString(pending.nonce),
@@ -49,7 +39,7 @@ abstract contract SepoliaScenarioBase is ArtifactLog {
             vm.recordLogs();
             vm.broadcast(_keyForOwner(owner));
             module.cancelRecovery(account, i);
-            _logRecorded(logFile);
+            _logRecorded(address(module));
             return;
         }
     }

@@ -11,13 +11,11 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// previous rotation. Preflight-cancels any stale pending (owner-aware), re-signs
 /// with the live nonce (G1 + SCAGuardian1, 2-of-3 quorum), starts the recovery,
 /// then proves the early execute is blocked by the timelock.
-/// Artifact: `script/sepolia/logs/HappyScenarioStartSepolia.log` — DIRECTION line,
+/// Transcript: `script/sepolia/logs/sep-10-happy-start-r1.log` — DIRECTION line,
 /// EVENT lines decoded from recorded logs, ERROR line from the caught revert.
 contract HappyScenarioStartSepolia is SepoliaScenarioBase {
-    string internal constant LOG_NAME = "HappyScenarioStartSepolia.log";
-
     function run() external {
-        string memory logFile = _initLog(LOG_NAME);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
         uint256 g1Key = vm.envUint("G1_KEY");
         uint256 scag1OwnerKey = vm.envUint("SCAG1OWNER_KEY");
@@ -27,12 +25,11 @@ contract HappyScenarioStartSepolia is SepoliaScenarioBase {
         address validatorAddr = vm.envAddress("VALIDATOR_ADDR");
         address scaGuardian1Addr = vm.envAddress("SCAGUARDIAN1_ADDR");
 
-        _preflight(address(mainAccount), module, logFile);
+        _preflight(address(mainAccount), module);
 
         address ownerBefore = mainAccount.owner();
         address target = _toggleTarget(address(mainAccount));
         _artifact(
-            logFile,
             string.concat(
                 "DIRECTION ",
                 _roleName(ownerBefore),
@@ -52,13 +49,18 @@ contract HappyScenarioStartSepolia is SepoliaScenarioBase {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms);
-        _logRecorded(logFile);
+        _logRecorded(address(module));
         require(module.getPendingRecovery(address(mainAccount), 0).active, "not pending");
 
         try module.executeRecovery(address(mainAccount), 0) {
             revert("timelock not enforced");
         } catch Error(string memory reason) {
-            _artifactError(logFile, "EarlyExecute", reason);
+            _artifactError("EarlyExecute", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("EarlyExecute", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("EarlyExecute", _customReason(data));
         }
+        _artifactEnd();
     }
 }

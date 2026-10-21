@@ -9,13 +9,11 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// pending target regardless of ping-pong direction — the expected owner is read
 /// from the pending recovery itself. GUARD: refuses to broadcast before
 /// `executeAfter` so the runbook fails fast instead of burning a rejected tx.
-/// Artifact: `script/sepolia/logs/HappyScenarioExecuteSepolia.log` — EVENT lines
+/// Transcript: `script/sepolia/logs/sep-11-happy-execute-r1.log` — EVENT lines
 /// for `RecoveryExecuted` (module) and `OwnerChanged` (account) from the same tx.
 contract HappyScenarioExecuteSepolia is SepoliaScenarioBase {
-    string internal constant LOG_NAME = "HappyScenarioExecuteSepolia.log";
-
     function run() external {
-        string memory logFile = _initLog(LOG_NAME);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
 
         SmartAccount mainAccount = SmartAccount(payable(vm.envAddress("MAIN_ACCOUNT_ADDR")));
@@ -27,7 +25,6 @@ contract HappyScenarioExecuteSepolia is SepoliaScenarioBase {
 
         address expectedOwner = abi.decode(pending.newOwner, (address));
         _artifact(
-            logFile,
             string.concat(
                 "EXECUTE pending nonce=",
                 vm.toString(pending.nonce),
@@ -39,7 +36,8 @@ contract HappyScenarioExecuteSepolia is SepoliaScenarioBase {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.executeRecovery(address(mainAccount), 0);
-        _logRecorded(logFile);
+        _logRecorded(address(module), address(mainAccount));
         require(mainAccount.owner() == expectedOwner, "owner not rotated");
+        _artifactEnd();
     }
 }

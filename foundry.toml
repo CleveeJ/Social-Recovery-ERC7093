@@ -3,6 +3,6 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
-fs_permissions = [{ access = "read-write", path = "./script/local/deployed-local.env" }, { access = "read-write", path = "./script/sepolia/deployed-sepolia.env" }, { access = "read-write", path = "./script/local/logs/" }, { access = "read-write", path = "./script/sepolia/logs/" }]
+fs_permissions = [{ access = "read-write", path = "./script/local/deployed-local.env" }, { access = "read-write", path = "./script/sepolia/deployed-sepolia.env" }]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

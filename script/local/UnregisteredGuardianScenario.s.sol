@@ -7,11 +7,9 @@ import {IERC7093} from "../../src/interfaces/IERC7093.sol";
 import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Attack: G1 plus an unregistered stranger must revert.
-/// Artifact: `script/local/logs/UnregisteredGuardianScenario.log` — ERROR line
+/// Transcript: `script/local/logs/13-stranger.log` — ERROR line
 contract UnregisteredGuardianScenario is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/UnregisteredGuardianScenario.log";
-
-    uint256 constant STRANGER_KEY = 0x9999999999999999999999999999999999999999999999999999999999999999;
+    uint256 constant STRANGER_KEY = uint256(keccak256("social-recovery.stranger"));
 
     function _permEOA(bytes32 digest, uint256 gKey) internal pure returns (IERC7093.Permission memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(gKey, digest);
@@ -19,7 +17,7 @@ contract UnregisteredGuardianScenario is ArtifactLog {
     }
 
     function run() external {
-        _artifactInit(LOG_FILE);
+        _artifactInit();
         uint256 g1Key = vm.envUint("G1_KEY");
         address newOwnerAddr = vm.addr(vm.envUint("NEW_OWNER_KEY"));
 
@@ -36,9 +34,14 @@ contract UnregisteredGuardianScenario is ArtifactLog {
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("stranger not rejected");
         } catch Error(string memory reason) {
-            _artifactError(LOG_FILE, "UnregisteredGuardian G1+stranger", reason);
+            _artifactError("UnregisteredGuardian G1+stranger", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("UnregisteredGuardian G1+stranger", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("UnregisteredGuardian G1+stranger", _customReason(data));
         }
         require(!module.getPendingRecovery(address(mainAccount), 0).active, "recovery created");
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }

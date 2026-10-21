@@ -9,14 +9,12 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// @notice Attack: G1 plus an unregistered stranger must revert even though two
 /// signatures are present (the stranger carries no weight). Preflight-cancels any
 /// stale pending first. Stateless: simulation only, no broadcast, no gas spent.
-/// Artifact: `script/sepolia/logs/UnregisteredGuardianScenarioSepolia.log` — ERROR line.
+/// Transcript: `script/sepolia/logs/sep-31-stranger.log` — ERROR line.
 contract UnregisteredGuardianScenarioSepolia is SepoliaScenarioBase {
-    string internal constant LOG_NAME = "UnregisteredGuardianScenarioSepolia.log";
-
-    uint256 constant STRANGER_KEY = 0x9999999999999999999999999999999999999999999999999999999999999999;
+    uint256 constant STRANGER_KEY = uint256(keccak256("social-recovery.stranger"));
 
     function run() external {
-        string memory logFile = _initLog(LOG_NAME);
+        _artifactInit();
         uint256 g1Key = vm.envUint("G1_KEY");
         (address newOwnerAddr,) = _newOwner();
 
@@ -24,7 +22,7 @@ contract UnregisteredGuardianScenarioSepolia is SepoliaScenarioBase {
         RecoveryModule module = RecoveryModule(vm.envAddress("MODULE_ADDR"));
         address ownerBefore = mainAccount.owner();
 
-        _preflight(address(mainAccount), module, logFile);
+        _preflight(address(mainAccount), module);
 
         bytes memory newOwnerBytes = abi.encode(newOwnerAddr);
         bytes32 digest = module.getRecoveryDigest(address(mainAccount), 0, newOwnerBytes);
@@ -35,9 +33,14 @@ contract UnregisteredGuardianScenarioSepolia is SepoliaScenarioBase {
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("stranger not rejected");
         } catch Error(string memory reason) {
-            _artifactError(logFile, "UnregisteredGuardian G1+stranger", reason);
+            _artifactError("UnregisteredGuardian G1+stranger", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("UnregisteredGuardian G1+stranger", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("UnregisteredGuardian G1+stranger", _customReason(data));
         }
         require(!module.getPendingRecovery(address(mainAccount), 0).active, "recovery created");
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }

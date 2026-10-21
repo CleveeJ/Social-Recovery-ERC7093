@@ -10,13 +10,11 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// any stale pending, then starts a legitimate recovery (G1 + G2) so the early
 /// execute attempt has a live target to fail against. The pending is left behind
 /// on purpose — the next scenario's preflight (or the owner) cancels it.
-/// Artifact: `script/sepolia/logs/TimeLockBypassScenarioSepolia.log` — EVENT line
+/// Transcript: `script/sepolia/logs/sep-40-timelock.log` — EVENT line
 /// for the setup `RecoveryStarted`, ERROR line with the caught timelock reason.
 contract TimeLockBypassScenarioSepolia is SepoliaScenarioBase {
-    string internal constant LOG_NAME = "TimeLockBypassScenarioSepolia.log";
-
     function run() external {
-        string memory logFile = _initLog(LOG_NAME);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
         uint256 g1Key = vm.envUint("G1_KEY");
         uint256 g2Key = vm.envUint("G2_KEY");
@@ -26,7 +24,7 @@ contract TimeLockBypassScenarioSepolia is SepoliaScenarioBase {
         RecoveryModule module = RecoveryModule(vm.envAddress("MODULE_ADDR"));
         address ownerBefore = mainAccount.owner();
 
-        _preflight(address(mainAccount), module, logFile);
+        _preflight(address(mainAccount), module);
 
         bytes memory newOwnerBytes = abi.encode(newOwnerAddr);
         bytes32 digest = module.getRecoveryDigest(address(mainAccount), 0, newOwnerBytes);
@@ -37,14 +35,19 @@ contract TimeLockBypassScenarioSepolia is SepoliaScenarioBase {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms);
-        _logRecorded(logFile);
+        _logRecorded(address(module));
         require(module.getPendingRecovery(address(mainAccount), 0).active, "not pending");
 
         try module.executeRecovery(address(mainAccount), 0) {
             revert("timelock not enforced");
         } catch Error(string memory reason) {
-            _artifactError(logFile, "TimeLockBypass", reason);
+            _artifactError("TimeLockBypass", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("TimeLockBypass", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("TimeLockBypass", _customReason(data));
         }
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }

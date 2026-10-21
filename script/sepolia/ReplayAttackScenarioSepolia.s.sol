@@ -10,13 +10,11 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// revert (the recovery nonce advanced on first start; preflight cancellations do
 /// not burn the nonce). Preflight-cancels any stale pending, starts a legitimate
 /// recovery (G1 + G2), then replays the exact same permission bytes.
-/// Artifact: `script/sepolia/logs/ReplayAttackScenarioSepolia.log` — EVENT line
+/// Transcript: `script/sepolia/logs/sep-41-replay.log` — EVENT line
 /// for the legitimate first start, ERROR line for the rejected replay.
 contract ReplayAttackScenarioSepolia is SepoliaScenarioBase {
-    string internal constant LOG_NAME = "ReplayAttackScenarioSepolia.log";
-
     function run() external {
-        string memory logFile = _initLog(LOG_NAME);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
         uint256 g1Key = vm.envUint("G1_KEY");
         uint256 g2Key = vm.envUint("G2_KEY");
@@ -26,7 +24,7 @@ contract ReplayAttackScenarioSepolia is SepoliaScenarioBase {
         RecoveryModule module = RecoveryModule(vm.envAddress("MODULE_ADDR"));
         address ownerBefore = mainAccount.owner();
 
-        _preflight(address(mainAccount), module, logFile);
+        _preflight(address(mainAccount), module);
 
         bytes memory newOwnerBytes = abi.encode(newOwnerAddr);
         bytes32 digest = module.getRecoveryDigest(address(mainAccount), 0, newOwnerBytes);
@@ -37,14 +35,19 @@ contract ReplayAttackScenarioSepolia is SepoliaScenarioBase {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms);
-        _logRecorded(logFile);
+        _logRecorded(address(module));
         require(module.getPendingRecovery(address(mainAccount), 0).active, "not pending");
 
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("replay not rejected");
         } catch Error(string memory reason) {
-            _artifactError(logFile, "ReplayAttack", reason);
+            _artifactError("ReplayAttack", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("ReplayAttack", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("ReplayAttack", _customReason(data));
         }
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }

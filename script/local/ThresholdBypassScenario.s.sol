@@ -7,13 +7,11 @@ import {IERC7093} from "../../src/interfaces/IERC7093.sol";
 import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Attack: a single guardian (weight 1 < threshold 2) must revert.
-/// Artifact: `script/local/logs/ThresholdBypassScenario.log` — ERROR line only;
+/// Transcript: `script/local/logs/12-threshold.log` — ERROR line only;
 /// reverts emit no events.
 contract ThresholdBypassScenario is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/ThresholdBypassScenario.log";
-
     function run() external {
-        _artifactInit(LOG_FILE);
+        _artifactInit();
         uint256 g1Key = vm.envUint("G1_KEY");
         address newOwnerAddr = vm.addr(vm.envUint("NEW_OWNER_KEY"));
 
@@ -31,9 +29,14 @@ contract ThresholdBypassScenario is ArtifactLog {
         try module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms) {
             revert("threshold not enforced");
         } catch Error(string memory reason) {
-            _artifactError(LOG_FILE, "ThresholdBypass solo-G1", reason);
+            _artifactError("ThresholdBypass solo-G1", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("ThresholdBypass solo-G1", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("ThresholdBypass solo-G1", _customReason(data));
         }
         require(!module.getPendingRecovery(address(mainAccount), 0).active, "recovery created");
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }

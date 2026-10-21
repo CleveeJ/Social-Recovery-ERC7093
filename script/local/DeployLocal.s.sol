@@ -30,7 +30,6 @@ contract LocalEntryPoint {
 /// SCAG1Owner (EOA owner of SCAGuardian1), NewOwner.
 /// Postfix discipline: *_KEY = private key (vm.envUint), *_ADDR = address (vm.envAddress).
 contract DeployLocal is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/DeployLocal.log";
     function run() external {
         uint256 deployerKey = vm.envUint("DEPLOYER_KEY");
         uint256 mainOwnerKey = vm.envUint("MAIN_OWNER_KEY");
@@ -73,17 +72,17 @@ contract DeployLocal is ArtifactLog {
         );
 
         // Constructors emit no events: addresses are the artifact (no-event case).
-        _artifactInit(LOG_FILE);
-        _artifact(LOG_FILE, string.concat("DEPLOY EntryPoint=", vm.toString(address(entryPoint))));
-        _artifact(LOG_FILE, string.concat("DEPLOY Validator=", vm.toString(address(validator))));
-        _artifact(LOG_FILE, string.concat("DEPLOY PolicyVerifier=", vm.toString(address(verifier))));
-        _artifact(LOG_FILE, string.concat("DEPLOY RecoveryModule=", vm.toString(address(module))));
-        _artifact(LOG_FILE, string.concat("DEPLOY MainAccount=", vm.toString(address(mainAccount))));
-        _artifact(LOG_FILE, string.concat("DEPLOY MainOwner_ADDR=", vm.toString(mainOwnerAddr)));
-        _artifact(LOG_FILE, string.concat("DEPLOY G1_ADDR=", vm.toString(g1Addr)));
-        _artifact(LOG_FILE, string.concat("DEPLOY G2_ADDR=", vm.toString(g2Addr)));
-        _artifact(LOG_FILE, string.concat("DEPLOY SCAGuardian1_ADDR=", vm.toString(address(scaGuardian1))));
-        _artifact(LOG_FILE, string.concat("DEPLOY SCAG1Owner_ADDR=", vm.toString(scag1OwnerAddr)));
+        _artifactInit();
+        _artifact(string.concat("DEPLOY EntryPoint=", vm.toString(address(entryPoint))));
+        _artifact(string.concat("DEPLOY Validator=", vm.toString(address(validator))));
+        _artifact(string.concat("DEPLOY PolicyVerifier=", vm.toString(address(verifier))));
+        _artifact(string.concat("DEPLOY RecoveryModule=", vm.toString(address(module))));
+        _artifact(string.concat("DEPLOY MainAccount=", vm.toString(address(mainAccount))));
+        _artifact(string.concat("DEPLOY MainOwner_ADDR=", vm.toString(mainOwnerAddr)));
+        _artifact(string.concat("DEPLOY G1_ADDR=", vm.toString(g1Addr)));
+        _artifact(string.concat("DEPLOY G2_ADDR=", vm.toString(g2Addr)));
+        _artifact(string.concat("DEPLOY SCAGuardian1_ADDR=", vm.toString(address(scaGuardian1))));
+        _artifact(string.concat("DEPLOY SCAG1Owner_ADDR=", vm.toString(scag1OwnerAddr)));
 
         string memory envPath = "script/local/deployed-local.env";
         vm.writeFile(envPath, string.concat("ENTRYPOINT_ADDR=", vm.toString(address(entryPoint)), "\n"));
@@ -96,5 +95,6 @@ contract DeployLocal is ArtifactLog {
         vm.writeLine(envPath, string.concat("G2_ADDR=", vm.toString(g2Addr)));
         vm.writeLine(envPath, string.concat("SCAGUARDIAN1_ADDR=", vm.toString(address(scaGuardian1))));
         vm.writeLine(envPath, string.concat("SCAG1OWNER_ADDR=", vm.toString(scag1OwnerAddr)));
+        _artifactEnd();
     }
 }

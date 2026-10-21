@@ -7,18 +7,16 @@ import {IERC7093} from "../../src/interfaces/IERC7093.sol";
 import {ArtifactLog} from "./ArtifactLog.sol";
 
 /// @notice Attack: execute before the lock expires must revert.
-/// Artifact: `script/local/logs/TimeLockBypassScenario.log` — EVENT line for the
+/// Transcript: `script/local/logs/10-timelock.log` — EVENT line for the
 /// setup `RecoveryStarted`, ERROR line with the caught timelock reason.
 contract TimeLockBypassScenario is ArtifactLog {
-    string internal constant LOG_FILE = "script/local/logs/TimeLockBypassScenario.log";
-
     function _permEOA(bytes32 digest, uint256 gKey) internal pure returns (IERC7093.Permission memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(gKey, digest);
         return IERC7093.Permission(IERC7093.Identity(vm.addr(gKey), ""), abi.encodePacked(r, s, v));
     }
 
     function run() external {
-        _artifactInit(LOG_FILE);
+        _artifactInit();
         uint256 relayerKey = vm.envUint("DEPLOYER_KEY");
         uint256 g1Key = vm.envUint("G1_KEY");
         uint256 g2Key = vm.envUint("G2_KEY");
@@ -37,14 +35,19 @@ contract TimeLockBypassScenario is ArtifactLog {
         vm.recordLogs();
         vm.broadcast(relayerKey);
         module.startRecovery(address(mainAccount), 0, newOwnerBytes, perms);
-        _logRecorded(LOG_FILE);
+        _logRecorded(address(module));
         require(module.getPendingRecovery(address(mainAccount), 0).active, "not pending");
 
         try module.executeRecovery(address(mainAccount), 0) {
             revert("timelock not enforced");
         } catch Error(string memory reason) {
-            _artifactError(LOG_FILE, "TimeLockBypass", reason);
+            _artifactError("TimeLockBypass", reason);
+        } catch Panic(uint256 code) {
+            _artifactError("TimeLockBypass", _panicReason(code));
+        } catch (bytes memory data) {
+            _artifactError("TimeLockBypass", _customReason(data));
         }
         require(mainAccount.owner() == ownerBefore, "owner changed");
+        _artifactEnd();
     }
 }
