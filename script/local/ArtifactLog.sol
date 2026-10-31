@@ -19,8 +19,7 @@ abstract contract ArtifactLog is Script {
     bytes32 internal constant RECOVERY_STARTED_TOPIC = keccak256("RecoveryStarted(bytes,uint256,uint48)");
     bytes32 internal constant RECOVERY_EXECUTED_TOPIC = keccak256("RecoveryExecuted(bytes,uint256)");
     bytes32 internal constant RECOVERY_CANCELED_TOPIC = keccak256("RecoveryCanceled(uint256)");
-    bytes32 internal constant RECOVERY_CONFIGURED_TOPIC =
-        keccak256("RecoveryConfigured(address,uint256,address)");
+    bytes32 internal constant RECOVERY_CONFIGURED_TOPIC = keccak256("RecoveryConfigured(address,uint256,address)");
     bytes32 internal constant OWNER_CHANGED_TOPIC = keccak256("OwnerChanged(address)");
 
     /// @dev Print run metadata at the start of a scenario. `simBlock`/

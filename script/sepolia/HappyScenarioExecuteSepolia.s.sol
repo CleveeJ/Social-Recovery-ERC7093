@@ -26,10 +26,7 @@ contract HappyScenarioExecuteSepolia is SepoliaScenarioBase {
         address expectedOwner = abi.decode(pending.newOwner, (address));
         _artifact(
             string.concat(
-                "EXECUTE pending nonce=",
-                vm.toString(pending.nonce),
-                " expectedOwner=",
-                _roleName(expectedOwner)
+                "EXECUTE pending nonce=", vm.toString(pending.nonce), " expectedOwner=", _roleName(expectedOwner)
             )
         );
 

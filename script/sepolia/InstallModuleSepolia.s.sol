@@ -93,9 +93,7 @@ contract InstallModuleSepolia is ArtifactLog {
         entryPoint.handleOps(ops, beneficiary);
         _logRecorded(address(module));
 
-        require(
-            mainAccount.isModuleInstalled(MODULE_TYPE_VALIDATOR, address(validator), ""), "validator not installed"
-        );
+        require(mainAccount.isModuleInstalled(MODULE_TYPE_VALIDATOR, address(validator), ""), "validator not installed");
         require(mainAccount.isModuleInstalled(MODULE_TYPE_EXECUTOR, address(module), ""), "module not installed");
         _artifactEnd();
     }

@@ -21,11 +21,8 @@ interface IRecoveryModule {
 
     function cancelRecovery(address account, uint256 configIndex) external;
 
-    function cancelRecoveryByGuardians(
-        address account,
-        uint256 configIndex,
-        IERC7093.Permission[] calldata permissions
-    ) external;
+    function cancelRecoveryByGuardians(address account, uint256 configIndex, IERC7093.Permission[] calldata permissions)
+        external;
 
     function isGuardian(address account, uint256 configIndex, IERC7093.Identity calldata guardian)
         external
