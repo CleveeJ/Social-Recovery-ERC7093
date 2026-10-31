@@ -10,7 +10,7 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// must revert (the digest binds newOwner). Preflight-cancels any stale pending,
 /// signs the real target (G1 + G2), then submits different bytes in the same call.
 /// Stateless: simulation only, no broadcast, no gas spent.
-/// Transcript: `script/sepolia/logs/sep-32-tamper.log` — ERROR line only.
+/// Transcript: `script/sepolia/logs/sep-22-tamper.log` — ERROR line only.
 contract TamperedDataScenarioSepolia is SepoliaScenarioBase {
     function run() external {
         _artifactInit();

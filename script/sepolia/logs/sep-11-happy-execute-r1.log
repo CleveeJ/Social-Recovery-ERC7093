@@ -1,0 +1,35 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11963476 simTimestamp=1792598580 mode=simulation
+  EXECUTE pending nonce=1 expectedOwner=NewOwner
+  EVENT RecoveryExecuted newOwner=0x55Fc607C9BFCbF7Ac6f46b37Ad956C6B1b66D316 nonce=1
+  EVENT OwnerChanged newOwner=0x55Fc607C9BFCbF7Ac6f46b37Ad956C6B1b66D316
+  END status=ok
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated max fee per gas: 0.02000003 gwei
+Estimated base fee per gas: 0.000000015 gwei
+Estimated max priority fee per gas: 0.02 gwei
+
+Estimated total gas used for script: 110795
+
+Estimated amount required: 0.00000221590332385 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/broadcast\HappyScenarioExecuteSepolia.s.sol\11155111\run-latest.json
+
+Sensitive values saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/cache\HappyScenarioExecuteSepolia.s.sol\11155111\run-latest.json
+

@@ -1,0 +1,8 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11984400 simTimestamp=1792852404 mode=simulation
+  ERROR context="UnregisteredGuardian G1+stranger" reason="RecoveryModule: verification failed"
+  END status=ok
+Warning: No transactions to broadcast.

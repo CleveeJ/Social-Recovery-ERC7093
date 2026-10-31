@@ -10,7 +10,7 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// revert (the recovery nonce advanced on first start; preflight cancellations do
 /// not burn the nonce). Preflight-cancels any stale pending, starts a legitimate
 /// recovery (G1 + G2), then replays the exact same permission bytes.
-/// Transcript: `script/sepolia/logs/sep-41-replay.log` — EVENT line
+/// Transcript: `script/sepolia/logs/sep-24-replay.log` — EVENT line
 /// for the legitimate first start, ERROR line for the rejected replay.
 contract ReplayAttackScenarioSepolia is SepoliaScenarioBase {
     function run() external {

@@ -1,0 +1,37 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11984556 simTimestamp=1792854324 mode=simulation
+  PREFLIGHT cancel stale pending nonce=3 configIndex=0 by owner=NewOwner
+  EVENT RecoveryCanceled nonce=3
+  DIRECTION NewOwner -> MainOwner nonce=4
+  EVENT RecoveryStarted newOwner=0x9306798744B987f2e705B7606032FB5566CBb6cf nonce=4 executeAfter=1792854924
+  ERROR context="EarlyExecute" reason="RecoveryModule: time lock active"
+  END status=ok
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated max fee per gas: 0.001000038 gwei
+Estimated base fee per gas: 0.000000019 gwei
+Estimated max priority fee per gas: 0.001 gwei
+
+Estimated total gas used for script: 338084
+
+Estimated amount required: 0.000000338096847192 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/broadcast\HappyScenarioStartSepolia.s.sol\11155111\run-latest.json
+
+Sensitive values saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/cache\HappyScenarioStartSepolia.s.sol\11155111\run-latest.json
+

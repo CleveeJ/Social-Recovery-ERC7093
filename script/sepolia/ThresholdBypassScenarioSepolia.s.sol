@@ -9,7 +9,7 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// @notice Attack: a single guardian (weight 1 < threshold 2) must revert,
 /// even with a valid signature for the live nonce. Preflight-cancels any stale
 /// pending first. Stateless: simulation only, no broadcast, no gas spent.
-/// Transcript: `script/sepolia/logs/sep-30-threshold.log` — ERROR
+/// Transcript: `script/sepolia/logs/sep-20-threshold.log` — ERROR
 /// line only; reverts emit no events.
 contract ThresholdBypassScenarioSepolia is SepoliaScenarioBase {
     function run() external {

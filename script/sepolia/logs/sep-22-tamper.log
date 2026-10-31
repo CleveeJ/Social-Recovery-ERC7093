@@ -1,0 +1,8 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11984402 simTimestamp=1792852428 mode=simulation
+  ERROR context="TamperedData" reason="RecoveryModule: bad guardian signature"
+  END status=ok
+Warning: No transactions to broadcast.

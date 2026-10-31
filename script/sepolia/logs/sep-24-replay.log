@@ -1,0 +1,36 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11984521 simTimestamp=1792853868 mode=simulation
+  PREFLIGHT cancel stale pending nonce=2 configIndex=0 by owner=NewOwner
+  EVENT RecoveryCanceled nonce=2
+  EVENT RecoveryStarted newOwner=0x55Fc607C9BFCbF7Ac6f46b37Ad956C6B1b66D316 nonce=3 executeAfter=1792854468
+  ERROR context="ReplayAttack" reason="RecoveryModule: bad guardian signature"
+  END status=ok
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated max fee per gas: 0.001000034 gwei
+Estimated base fee per gas: 0.000000017 gwei
+Estimated max priority fee per gas: 0.001 gwei
+
+Estimated total gas used for script: 284346
+
+Estimated amount required: 0.000000284355667764 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/broadcast\ReplayAttackScenarioSepolia.s.sol\11155111\run-latest.json
+
+Sensitive values saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/cache\ReplayAttackScenarioSepolia.s.sol\11155111\run-latest.json
+

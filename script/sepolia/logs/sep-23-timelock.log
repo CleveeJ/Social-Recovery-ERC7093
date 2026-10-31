@@ -1,0 +1,34 @@
+No files changed, compilation skipped
+Script ran successfully.
+
+== Logs ==
+  RUN chainId=11155111 simBlock=11984462 simTimestamp=1792853148 mode=simulation
+  EVENT RecoveryStarted newOwner=0x55Fc607C9BFCbF7Ac6f46b37Ad956C6B1b66D316 nonce=2 executeAfter=1792853748
+  ERROR context="TimeLockBypass" reason="RecoveryModule: time lock active"
+  END status=ok
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 11155111
+
+Estimated max fee per gas: 0.043993788 gwei
+Estimated base fee per gas: 0.000000019 gwei
+Estimated max priority fee per gas: 0.04399375 gwei
+
+Estimated total gas used for script: 228456
+
+Estimated amount required: 0.000010050644831328 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/broadcast\TimeLockBypassScenarioSepolia.s.sol\11155111\run-latest.json
+
+Sensitive values saved to: D:/Penyimpanan Utama/Skripsi/Social-Recovery/cache\TimeLockBypassScenarioSepolia.s.sol\11155111\run-latest.json
+

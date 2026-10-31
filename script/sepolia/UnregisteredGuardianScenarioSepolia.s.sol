@@ -9,7 +9,7 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// @notice Attack: G1 plus an unregistered stranger must revert even though two
 /// signatures are present (the stranger carries no weight). Preflight-cancels any
 /// stale pending first. Stateless: simulation only, no broadcast, no gas spent.
-/// Transcript: `script/sepolia/logs/sep-31-stranger.log` — ERROR line.
+/// Transcript: `script/sepolia/logs/sep-21-stranger.log` — ERROR line.
 contract UnregisteredGuardianScenarioSepolia is SepoliaScenarioBase {
     uint256 constant STRANGER_KEY = uint256(keccak256("social-recovery.stranger"));
 

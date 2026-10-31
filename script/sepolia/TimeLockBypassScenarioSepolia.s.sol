@@ -10,7 +10,7 @@ import {SepoliaScenarioBase} from "./SepoliaScenarioBase.sol";
 /// any stale pending, then starts a legitimate recovery (G1 + G2) so the early
 /// execute attempt has a live target to fail against. The pending is left behind
 /// on purpose — the next scenario's preflight (or the owner) cancels it.
-/// Transcript: `script/sepolia/logs/sep-40-timelock.log` — EVENT line
+/// Transcript: `script/sepolia/logs/sep-23-timelock.log` — EVENT line
 /// for the setup `RecoveryStarted`, ERROR line with the caught timelock reason.
 contract TimeLockBypassScenarioSepolia is SepoliaScenarioBase {
     function run() external {

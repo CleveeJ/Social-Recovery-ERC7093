@@ -16,4 +16,3 @@ docs/
 
 # Log File
 script/local/logs/*.log
-script/sepolia/logs/*.log
